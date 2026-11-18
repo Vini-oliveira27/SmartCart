@@ -5,7 +5,7 @@ import ScannerPanel from "./components/ScannerPanel";
 import EntradaManual from "./components/EntradaManual";
 import Carrinho from "./components/Carrinho";
 import BarraTotal from "./components/BarraTotal";
-import ResumoDialog from "./components/ResumoDialog";
+import CheckoutDialog from "./components/CheckoutDialog";
 import Esp32Panel from "./components/Esp32Panel";
 import CatalogoProdutos from "./components/CatalogoProdutos";
 import { useCarrinho } from "./hooks/useCarrinho";
@@ -34,7 +34,7 @@ export default function App() {
     texto: 'Toque em "Iniciar leitura" para escanear os produtos.',
     tipo: "",
   });
-  const [resumoAberto, setResumoAberto] = useState(false);
+  const [checkoutAberto, setCheckoutAberto] = useState(false);
 
   const mostrarStatus = useCallback((texto, tipo = "") => {
     setStatus({ texto, tipo });
@@ -46,7 +46,7 @@ export default function App() {
       if (id) {
         feedbackSucesso();
         flash?.();
-        mostrarStatus(`✔ ${bancoProdutos[id].nome} adicionado`, "ok");
+        mostrarStatus(`${bancoProdutos[id].nome} adicionado`, "ok");
       } else {
         feedbackErro();
         mostrarStatus(`Produto não cadastrado: ${codigo}`, "erro");
@@ -84,7 +84,7 @@ export default function App() {
     const id = adicionar(codigo);
     if (id) {
       feedbackSucesso();
-      mostrarStatus(`✔ ${bancoProdutos[id].nome} adicionado`, "ok");
+      mostrarStatus(`${bancoProdutos[id].nome} adicionado`, "ok");
     } else {
       feedbackErro();
       mostrarStatus(`Produto não cadastrado: ${codigo}`, "erro");
@@ -99,46 +99,67 @@ export default function App() {
     <div className="sc-app">
       <div className="sc-shell">
         <Header />
-        <StatusBar texto={statusExibido.texto} tipo={statusExibido.tipo} />
-        <ScannerPanel
-          ativo={scanner.ativo}
-          flash={scanner.flash}
-          onAlternar={onToggleScanner}
-          readerId={READER_ID}
-        />
-        <EntradaManual onAdicionar={onManual} />
-        <Carrinho
-          itens={carrinho}
-          quantidadeItens={quantidadeItens}
-          onMais={(id) => alterarQuantidade(id, 1)}
-          onMenos={(id) => alterarQuantidade(id, -1)}
-          onRemover={remover}
-          onLimpar={onLimpar}
-        />
-        <Esp32Panel
-          codigo={esp.codigo}
-          onCodigoChange={esp.setCodigo}
-          conectado={esp.conectado}
-          status={esp.status}
-          onConectar={esp.conectar}
-        />
-        <CatalogoProdutos />
+
+        <section className="sc-panel sc-panel-scan">
+          <div className="sc-panel-label">
+            <span>01</span>
+            <h2>Leitura</h2>
+          </div>
+          <StatusBar texto={statusExibido.texto} tipo={statusExibido.tipo} />
+          <ScannerPanel
+            ativo={scanner.ativo}
+            flash={scanner.flash}
+            onAlternar={onToggleScanner}
+            readerId={READER_ID}
+          />
+          <EntradaManual onAdicionar={onManual} />
+        </section>
+
+        <section className="sc-panel">
+          <div className="sc-panel-label">
+            <span>02</span>
+            <h2>Carrinho</h2>
+          </div>
+          <Carrinho
+            itens={carrinho}
+            quantidadeItens={quantidadeItens}
+            onMais={(id) => alterarQuantidade(id, 1)}
+            onMenos={(id) => alterarQuantidade(id, -1)}
+            onRemover={remover}
+            onLimpar={onLimpar}
+          />
+        </section>
+
+        <section className="sc-panel sc-panel-muted">
+          <div className="sc-panel-label">
+            <span>03</span>
+            <h2>Integrações</h2>
+          </div>
+          <Esp32Panel
+            codigo={esp.codigo}
+            onCodigoChange={esp.setCodigo}
+            conectado={esp.conectado}
+            status={esp.status}
+            onConectar={esp.conectar}
+          />
+          <CatalogoProdutos />
+        </section>
       </div>
 
       <BarraTotal
         total={total}
         disabled={carrinho.length === 0}
-        onFinalizar={() => setResumoAberto(true)}
+        onFinalizar={() => setCheckoutAberto(true)}
       />
 
-      <ResumoDialog
-        aberto={resumoAberto}
+      <CheckoutDialog
+        aberto={checkoutAberto}
         itens={carrinho}
         total={total}
-        onVoltar={() => setResumoAberto(false)}
+        onVoltar={() => setCheckoutAberto(false)}
         onNova={() => {
           limpar();
-          setResumoAberto(false);
+          setCheckoutAberto(false);
           mostrarStatus("Nova compra iniciada.");
         }}
       />

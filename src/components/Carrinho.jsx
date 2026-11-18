@@ -10,9 +10,9 @@ export default function Carrinho({
   onLimpar,
 }) {
   return (
-    <section className="sc-cart" aria-labelledby="titulo-carrinho">
+    <div className="sc-cart">
       <div className="sc-cart-head">
-        <h2 id="titulo-carrinho">Seu carrinho</h2>
+        <h3>Itens no carrinho</h3>
         <span>
           {quantidadeItens} {quantidadeItens === 1 ? "item" : "itens"}
         </span>
@@ -72,6 +72,6 @@ export default function Carrinho({
           </button>
         </div>
       )}
-    </section>
+    </div>
   );
 }

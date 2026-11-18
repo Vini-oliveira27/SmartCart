@@ -10,11 +10,11 @@ export default function BarraTotal({ total, disabled, onFinalizar }) {
         </div>
         <button
           type="button"
-          className="sc-btn sc-btn-primary"
+          className="sc-btn sc-btn-primary sc-btn-checkout"
           disabled={disabled}
           onClick={onFinalizar}
         >
-          Finalizar
+          Checkout
         </button>
       </div>
     </div>
