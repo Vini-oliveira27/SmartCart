@@ -9,15 +9,15 @@ export default function OrcamentoPanel({
 
   return (
     <section className="sc-orcamento-panel" aria-labelledby="titulo-orcamento">
-      <h2 id="titulo-orcamento">Orçamento</h2>
-      <p>
-        Defina um limite opcional. O total muda de cor ao se aproximar do valor.
+      <p id="titulo-orcamento">
+        Defina quanto pretende gastar antes de começar a escanear. O total muda
+        de cor ao se aproximar do limite.
       </p>
 
       <div className="sc-orcamento">
         <label htmlFor="orcamento-input">
-          Limite (opcional)
-          <span className="sc-hint-inline">Em reais</span>
+          Limite da compra
+          <span className="sc-hint-inline">Opcional · em reais</span>
         </label>
         <div className="sc-orcamento-row">
           <input

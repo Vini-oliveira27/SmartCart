@@ -159,9 +159,20 @@ export default function App() {
           onFechar={() => setToast(null)}
         />
 
-        <section className="sc-panel sc-panel-scan">
+        <section className="sc-panel">
           <div className="sc-panel-label">
             <span>01</span>
+            <h2>Orçamento</h2>
+          </div>
+          <OrcamentoPanel
+            orcamentoCentavos={orcamentoCentavos}
+            onOrcamentoChange={definirOrcamentoReais}
+          />
+        </section>
+
+        <section className="sc-panel sc-panel-scan">
+          <div className="sc-panel-label">
+            <span>02</span>
             <h2>Leitura</h2>
           </div>
           <ScannerPanel
@@ -180,7 +191,7 @@ export default function App() {
 
         <section className="sc-panel">
           <div className="sc-panel-label">
-            <span>02</span>
+            <span>03</span>
             <h2>Carrinho</h2>
           </div>
           <Carrinho
@@ -197,7 +208,7 @@ export default function App() {
         {modoTecnico && (
           <section className="sc-panel sc-panel-muted sc-panel-tech">
             <div className="sc-panel-label">
-              <span>03</span>
+              <span>04</span>
               <h2>Integrações</h2>
               <button
                 type="button"
@@ -208,10 +219,6 @@ export default function App() {
                 Fechar
               </button>
             </div>
-            <OrcamentoPanel
-              orcamentoCentavos={orcamentoCentavos}
-              onOrcamentoChange={definirOrcamentoReais}
-            />
             <CatalogoProdutos />
           </section>
         )}
