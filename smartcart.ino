@@ -26,8 +26,8 @@ const char* CODIGO_CARRINHO = "demo"; // igual ao site
 const char* MQTT_HOST = "broker.hivemq.com";
 const uint16_t MQTT_PORT = 1883;
 
-const int VELOCIDADE_REMOTA = 180; // 0..255 ao controlar pelo site
-const unsigned long TIMEOUT_CMD_MS = 450;
+const int VELOCIDADE_REMOTA = 200; // 0..255 ao controlar pelo site
+const unsigned long TIMEOUT_CMD_MS = 900; // margem enquanto o site reenvia
 // =================================
 
 // Joystick
@@ -110,17 +110,33 @@ void aoReceberMqtt(char* topic, byte* payload, unsigned int length) {
   memcpy(msg, payload, length);
   msg[length] = '\0';
 
-  // normaliza minúsculas simples
   for (unsigned int i = 0; i < length; i++) {
     if (msg[i] >= 'A' && msg[i] <= 'Z') msg[i] = msg[i] - 'A' + 'a';
+  }
+
+  // Evita spam de "parar" logo após um comando de movimento (ruído de UI)
+  if (strcmp(msg, "parar") == 0 &&
+      strcmp(comandoRemoto, "parar") != 0 &&
+      (millis() - ultimoCmdMs) < 80) {
+    return;
   }
 
   strncpy(comandoRemoto, msg, sizeof(comandoRemoto) - 1);
   comandoRemoto[sizeof(comandoRemoto) - 1] = '\0';
   ultimoCmdMs = millis();
 
-  Serial.print("CMD remoto: ");
-  Serial.println(comandoRemoto);
+  // Aplica na hora (não espera o próximo loop)
+  int velA = 0;
+  int velB = 0;
+  comandoParaMotores(comandoRemoto, &velA, &velB);
+  aplicarDirecao(velA, velB);
+
+  Serial.print("CMD: ");
+  Serial.print(comandoRemoto);
+  Serial.print(" A=");
+  Serial.print(velA);
+  Serial.print(" B=");
+  Serial.println(velB);
 }
 
 bool tentarWifi() {
@@ -292,10 +308,12 @@ int sinal(int v) {
 
 void acionarMotorSeguro(int rpwm, int lpwm, int velocidade, int* sentidoAtual, char motorId) {
   int novo = sinal(velocidade);
+  // Sem delay aqui: delay dentro do callback MQTT/trava o controle remoto
   if (*sentidoAtual != 0 && novo != 0 && *sentidoAtual != novo) {
     pararCanal(rpwm, lpwm);
-    delay(PAUSA_INVERSAO_MS);
   }
   moverBTS7960(rpwm, lpwm, velocidade);
   *sentidoAtual = novo;
+  (void)motorId;
+  (void)PAUSA_INVERSAO_MS;
 }

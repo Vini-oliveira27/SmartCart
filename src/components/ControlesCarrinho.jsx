@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const BOTOES = [
   { id: "frente", label: "Frente", grid: "frente" },
@@ -10,43 +10,69 @@ const BOTOES = [
 
 export default function ControlesCarrinho({
   conectado,
-  comandoAtual,
   onComando,
   codigo,
   onCodigoChange,
   status,
   onConectar,
 }) {
+  const [ativo, setAtivo] = useState("parar");
   const holdRef = useRef(null);
   const cmdRef = useRef("parar");
+  const holdingRef = useRef(false);
+  const onComandoRef = useRef(onComando);
 
   useEffect(() => {
-    return () => {
-      if (holdRef.current) window.clearInterval(holdRef.current);
-      onComando?.("parar");
-    };
+    onComandoRef.current = onComando;
   }, [onComando]);
 
-  function pararHold() {
+  useEffect(() => {
+    function soltarGlobal() {
+      if (!holdingRef.current) return;
+      holdingRef.current = false;
+      if (holdRef.current) {
+        window.clearInterval(holdRef.current);
+        holdRef.current = null;
+      }
+      cmdRef.current = "parar";
+      setAtivo("parar");
+      onComandoRef.current?.("parar");
+    }
+
+    window.addEventListener("pointerup", soltarGlobal);
+    window.addEventListener("pointercancel", soltarGlobal);
+    window.addEventListener("blur", soltarGlobal);
+
+    return () => {
+      window.removeEventListener("pointerup", soltarGlobal);
+      window.removeEventListener("pointercancel", soltarGlobal);
+      window.removeEventListener("blur", soltarGlobal);
+      if (holdRef.current) window.clearInterval(holdRef.current);
+      if (holdingRef.current) onComandoRef.current?.("parar");
+    };
+  }, []);
+
+  function iniciarHold(cmd) {
+    if (!conectado) return;
+
     if (holdRef.current) {
       window.clearInterval(holdRef.current);
       holdRef.current = null;
     }
-    cmdRef.current = "parar";
-    onComando?.("parar");
-  }
 
-  function iniciarHold(cmd) {
-    if (!conectado) return;
-    if (holdRef.current) window.clearInterval(holdRef.current);
-
+    holdingRef.current = cmd !== "parar";
     cmdRef.current = cmd;
-    onComando?.(cmd);
+    setAtivo(cmd);
+    onComandoRef.current?.(cmd);
 
+    // Mantém o comando vivo no ESP32 enquanto segura
     if (cmd !== "parar") {
       holdRef.current = window.setInterval(() => {
-        onComando?.(cmdRef.current);
-      }, 200);
+        if (!holdingRef.current) return;
+        onComandoRef.current?.(cmdRef.current);
+      }, 150);
+    } else {
+      holdingRef.current = false;
     }
   }
 
@@ -83,22 +109,15 @@ export default function ControlesCarrinho({
             key={b.id}
             type="button"
             className={`sc-drive-btn sc-drive-${b.grid} ${
-              comandoAtual === b.id ? "ativo" : ""
+              ativo === b.id ? "ativo" : ""
             }`}
             disabled={!conectado}
             aria-label={b.label}
             onPointerDown={(e) => {
               e.preventDefault();
-              try {
-                e.currentTarget.setPointerCapture(e.pointerId);
-              } catch {
-                /* ignore */
-              }
+              e.stopPropagation();
               iniciarHold(b.id);
             }}
-            onPointerUp={pararHold}
-            onPointerCancel={pararHold}
-            onLostPointerCapture={pararHold}
             onContextMenu={(e) => e.preventDefault()}
           >
             {b.id === "frente" && "▲"}

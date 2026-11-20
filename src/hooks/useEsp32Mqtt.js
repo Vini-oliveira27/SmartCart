@@ -84,10 +84,10 @@ export function useEsp32Mqtt(total, quantidadeItens) {
     const client = clientRef.current;
     const id = codigoRef.current;
     const cmd = String(comando || "parar").toLowerCase();
-    setComandoAtual(cmd);
+    // Evita re-render a cada 150ms (isso soltava o botão e mandava "parar")
+    setComandoAtual((atual) => (atual === cmd ? atual : cmd));
     if (!client?.connected) return false;
     try {
-      // Sem retain: o motor só anda enquanto o site estiver mandando o comando
       client.publish(`smartcart/${id}/cmd`, cmd, { qos: 0, retain: false });
       return true;
     } catch (e) {

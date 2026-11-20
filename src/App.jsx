@@ -200,7 +200,6 @@ export default function App() {
           </div>
           <ControlesCarrinho
             conectado={esp.conectado}
-            comandoAtual={esp.comandoAtual}
             onComando={esp.enviarComando}
             codigo={esp.codigo}
             onCodigoChange={esp.setCodigo}
