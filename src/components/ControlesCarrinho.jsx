@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 const BOTOES = [
   { id: "frente", label: "Frente", grid: "frente" },
@@ -8,6 +8,12 @@ const BOTOES = [
   { id: "tras", label: "Ré", grid: "tras" },
 ];
 
+/**
+ * Modo clique (não segurar):
+ * Frente/Ré/Esq/Dir = motor fica ligado
+ * Parar = desliga
+ * Isso evita o "pulinho" causado por soltar o botão cedo demais.
+ */
 export default function ControlesCarrinho({
   conectado,
   onComando,
@@ -17,61 +23,12 @@ export default function ControlesCarrinho({
   onConectar,
 }) {
   const [ativo, setAtivo] = useState("parar");
-  const holdingRef = useRef(false);
-  const armedRef = useRef(false);
-  const armTimerRef = useRef(null);
-  const pointerIdRef = useRef(null);
-  const onComandoRef = useRef(onComando);
 
-  useEffect(() => {
-    onComandoRef.current = onComando;
-  }, [onComando]);
-
-  function limparArm() {
-    if (armTimerRef.current) {
-      window.clearTimeout(armTimerRef.current);
-      armTimerRef.current = null;
-    }
-    armedRef.current = false;
-  }
-
-  function parar(motivo = "release") {
-    if (!holdingRef.current && ativo === "parar") return;
-    holdingRef.current = false;
-    pointerIdRef.current = null;
-    limparArm();
-    setAtivo("parar");
-    onComandoRef.current?.("parar");
-    console.debug("[drive] parar", motivo);
-  }
-
-  function iniciar(cmd, pointerId) {
+  function enviar(cmd) {
     if (!conectado) return;
-
-    limparArm();
-    holdingRef.current = cmd !== "parar";
-    pointerIdRef.current = pointerId ?? null;
     setAtivo(cmd);
-    onComandoRef.current?.(cmd);
-    console.debug("[drive] iniciar", cmd);
-
-    if (cmd === "parar") {
-      holdingRef.current = false;
-      return;
-    }
-
-    // Só aceita "soltar" depois de 80ms (evita pointerup fantasma no mesmo clique)
-    armTimerRef.current = window.setTimeout(() => {
-      armedRef.current = true;
-    }, 80);
+    onComando?.(cmd);
   }
-
-  useEffect(() => {
-    return () => {
-      limparArm();
-      if (holdingRef.current) onComandoRef.current?.("parar");
-    };
-  }, []);
 
   return (
     <section className="sc-drive" aria-labelledby="titulo-drive">
@@ -100,6 +57,8 @@ export default function ControlesCarrinho({
         {status?.texto || (conectado ? "Conectado" : "Desconectado")}
       </div>
 
+      <p className="sc-drive-hint">Toque para andar · Parar para frear</p>
+
       <div className="sc-drive-pad" role="group" aria-label="Direção do carrinho">
         {BOTOES.map((b) => (
           <button
@@ -110,31 +69,7 @@ export default function ControlesCarrinho({
             }`}
             disabled={!conectado}
             aria-label={b.label}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              try {
-                e.currentTarget.setPointerCapture(e.pointerId);
-              } catch {
-                /* ignore */
-              }
-              iniciar(b.id, e.pointerId);
-            }}
-            onPointerUp={(e) => {
-              if (pointerIdRef.current != null && e.pointerId !== pointerIdRef.current) {
-                return;
-              }
-              if (!armedRef.current && b.id !== "parar") {
-                // pointerup cedo demais: ignora (continua andando)
-                return;
-              }
-              parar("pointerup");
-            }}
-            onPointerCancel={() => parar("cancel")}
-            onLostPointerCapture={() => {
-              if (holdingRef.current && armedRef.current) parar("lost");
-            }}
-            onContextMenu={(e) => e.preventDefault()}
+            onClick={() => enviar(b.id)}
           >
             {b.id === "frente" && "▲"}
             {b.id === "tras" && "▼"}
