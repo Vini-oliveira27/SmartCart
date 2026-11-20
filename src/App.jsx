@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Header from "./components/Header";
-import StatusBar from "./components/StatusBar";
 import ScannerPanel from "./components/ScannerPanel";
 import EntradaManual from "./components/EntradaManual";
 import Carrinho from "./components/Carrinho";
@@ -8,16 +7,16 @@ import BarraTotal from "./components/BarraTotal";
 import CheckoutDialog from "./components/CheckoutDialog";
 import Esp32Panel from "./components/Esp32Panel";
 import CatalogoProdutos from "./components/CatalogoProdutos";
+import Toast from "./components/Toast";
 import { useCarrinho } from "./hooks/useCarrinho";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
 import { useEsp32Mqtt } from "./hooks/useEsp32Mqtt";
 import { bancoProdutos } from "./data/produtos";
+import { moeda } from "./utils/moeda";
 import { feedbackErro, feedbackSucesso } from "./utils/feedback";
 import "./App.css";
 
 const READER_ID = "qr-reader";
-const MSG_CAMERA =
-  "Câmera ativa — retire o código da visão para ler de novo";
 
 export default function App() {
   const {
@@ -26,19 +25,50 @@ export default function App() {
     alterarQuantidade,
     remover,
     limpar,
+    desfazerRemocao,
+    limparDesfazer,
+    pendenteDesfazer,
     total,
+    totalCentavos,
     quantidadeItens,
+    orcamentoCentavos,
+    definirOrcamentoReais,
   } = useCarrinho();
 
-  const [status, setStatus] = useState({
-    texto: 'Toque em "Iniciar leitura" para escanear os produtos.',
-    tipo: "",
-  });
+  const [toast, setToast] = useState(null);
   const [checkoutAberto, setCheckoutAberto] = useState(false);
+  const [modoTecnico, setModoTecnico] = useState(false);
+  const [saindoId, setSaindoId] = useState(null);
 
-  const mostrarStatus = useCallback((texto, tipo = "") => {
-    setStatus({ texto, tipo });
+  const mostrarToast = useCallback((mensagem, tipo = "ok", extra = {}) => {
+    setToast({ mensagem, tipo, ...extra });
   }, []);
+
+  useEffect(() => {
+    if (!toast || toast.persistente) return undefined;
+    const t = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!pendenteDesfazer) return undefined;
+    const item = pendenteDesfazer;
+    const nome = bancoProdutos[item.id]?.nome || "Item";
+    setToast({
+      mensagem: `${nome} removido`,
+      tipo: "info",
+      acaoLabel: "Desfazer",
+      onAcao: () => desfazerRemocao(),
+      persistente: false,
+    });
+    const t = window.setTimeout(() => {
+      limparDesfazer();
+      setToast((atual) =>
+        atual?.acaoLabel === "Desfazer" ? null : atual
+      );
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, [pendenteDesfazer, desfazerRemocao, limparDesfazer]);
 
   const handleCodigo = useCallback(
     (codigo, flash) => {
@@ -46,70 +76,101 @@ export default function App() {
       if (id) {
         feedbackSucesso();
         flash?.();
-        mostrarStatus(`${bancoProdutos[id].nome} adicionado`, "ok");
+        const p = bancoProdutos[id];
+        mostrarToast(`${p.nome} · ${moeda(p.preco)} adicionado`, "ok");
       } else {
         feedbackErro();
-        mostrarStatus(`Produto não cadastrado: ${codigo}`, "erro");
+        mostrarToast("Produto não encontrado", "erro");
       }
     },
-    [adicionar, mostrarStatus]
+    [adicionar, mostrarToast]
   );
 
   const scanner = useBarcodeScanner(READER_ID, handleCodigo);
   const esp = useEsp32Mqtt(total, quantidadeItens);
 
-  useEffect(() => {
-    if (!scanner.ativo || !status.tipo) return undefined;
-    const t = window.setTimeout(() => {
-      setStatus({ texto: MSG_CAMERA, tipo: "" });
-    }, 2000);
-    return () => window.clearTimeout(t);
-  }, [status, scanner.ativo]);
-
-  const statusExibido = scanner.erro
-    ? { texto: scanner.erro, tipo: "erro" }
-    : status;
+  const nivelOrcamento = useMemo(() => {
+    if (!orcamentoCentavos || orcamentoCentavos <= 0) return "";
+    const ratio = totalCentavos / orcamentoCentavos;
+    if (ratio >= 1) return "estourou";
+    if (ratio >= 0.85) return "alerta";
+    return "ok";
+  }, [orcamentoCentavos, totalCentavos]);
 
   async function onToggleScanner() {
     if (scanner.ativo) {
       await scanner.parar();
-      mostrarStatus("Leitura parada.");
       return;
     }
-    const ok = await scanner.iniciar();
-    if (ok) mostrarStatus(MSG_CAMERA);
+    await scanner.iniciar();
   }
 
   function onManual(codigo) {
     const id = adicionar(codigo);
     if (id) {
       feedbackSucesso();
-      mostrarStatus(`${bancoProdutos[id].nome} adicionado`, "ok");
+      const p = bancoProdutos[id];
+      mostrarToast(`${p.nome} · ${moeda(p.preco)} adicionado`, "ok");
     } else {
       feedbackErro();
-      mostrarStatus(`Produto não cadastrado: ${codigo}`, "erro");
+      mostrarToast("Produto não encontrado", "erro");
     }
   }
 
-  function onLimpar() {
-    if (confirm("Remover todos os itens do carrinho?")) limpar();
+  function onMenos(id) {
+    const item = carrinho.find((i) => i.id === id);
+    if (item && item.quantidade <= 1) {
+      setSaindoId(id);
+      window.setTimeout(() => {
+        alterarQuantidade(id, -1);
+        setSaindoId(null);
+      }, 220);
+      return;
+    }
+    alterarQuantidade(id, -1);
+  }
+
+  function onRemover(id) {
+    setSaindoId(id);
+    window.setTimeout(() => {
+      remover(id);
+      setSaindoId(null);
+    }, 220);
   }
 
   return (
-    <div className="sc-app">
+    <div className={`sc-app ${scanner.ativo ? "sc-scanning" : ""}`}>
       <div className="sc-shell">
-        <Header />
+        <Header
+          compact={scanner.ativo}
+          onAbrirTecnico={() => setModoTecnico(true)}
+        />
+
+        <Toast
+          mensagem={toast?.mensagem}
+          tipo={toast?.tipo}
+          acaoLabel={toast?.acaoLabel}
+          onAcao={() => {
+            toast?.onAcao?.();
+            setToast(null);
+          }}
+          onFechar={() => setToast(null)}
+        />
 
         <section className="sc-panel sc-panel-scan">
           <div className="sc-panel-label">
             <span>01</span>
             <h2>Leitura</h2>
           </div>
-          <StatusBar texto={statusExibido.texto} tipo={statusExibido.tipo} />
           <ScannerPanel
             ativo={scanner.ativo}
             flash={scanner.flash}
+            erro={scanner.erro}
             onAlternar={onToggleScanner}
+            onTentarNovamente={scanner.tentarNovamente}
+            torchDisponivel={scanner.torchDisponivel}
+            torchOn={scanner.torchOn}
+            onTorch={scanner.alternarTorch}
             readerId={READER_ID}
           />
           <EntradaManual onAdicionar={onManual} />
@@ -124,31 +185,48 @@ export default function App() {
             itens={carrinho}
             quantidadeItens={quantidadeItens}
             onMais={(id) => alterarQuantidade(id, 1)}
-            onMenos={(id) => alterarQuantidade(id, -1)}
-            onRemover={remover}
-            onLimpar={onLimpar}
+            onMenos={onMenos}
+            onRemover={onRemover}
+            onLimpar={limpar}
+            saindoId={saindoId}
           />
         </section>
 
-        <section className="sc-panel sc-panel-muted">
-          <div className="sc-panel-label">
-            <span>03</span>
-            <h2>Integrações</h2>
-          </div>
-          <Esp32Panel
-            codigo={esp.codigo}
-            onCodigoChange={esp.setCodigo}
-            conectado={esp.conectado}
-            status={esp.status}
-            onConectar={esp.conectar}
-          />
-          <CatalogoProdutos />
-        </section>
+        {modoTecnico && (
+          <section className="sc-panel sc-panel-muted sc-panel-tech">
+            <div className="sc-panel-label">
+              <span>03</span>
+              <h2>Integrações</h2>
+              <button
+                type="button"
+                className="sc-tech-close"
+                onClick={() => setModoTecnico(false)}
+                aria-label="Fechar modo técnico"
+              >
+                Fechar
+              </button>
+            </div>
+            <Esp32Panel
+              codigo={esp.codigo}
+              onCodigoChange={esp.setCodigo}
+              codigoTeste={esp.codigoTeste}
+              fase={esp.fase}
+              statusTexto={esp.statusTexto}
+              onConectar={esp.conectar}
+              onTentarNovamente={esp.tentarNovamente}
+              orcamentoCentavos={orcamentoCentavos}
+              onOrcamentoChange={definirOrcamentoReais}
+            />
+            <CatalogoProdutos />
+          </section>
+        )}
       </div>
 
       <BarraTotal
         total={total}
+        quantidadeItens={quantidadeItens}
         disabled={carrinho.length === 0}
+        nivelOrcamento={nivelOrcamento}
         onFinalizar={() => setCheckoutAberto(true)}
       />
 
@@ -157,10 +235,8 @@ export default function App() {
         itens={carrinho}
         total={total}
         onVoltar={() => setCheckoutAberto(false)}
-        onNova={() => {
+        onConfirmar={() => {
           limpar();
-          setCheckoutAberto(false);
-          mostrarStatus("Nova compra iniciada.");
         }}
       />
     </div>

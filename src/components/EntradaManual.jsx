@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { normalizarCodigo } from "../data/produtos";
 
 export default function EntradaManual({ onAdicionar }) {
   const [codigo, setCodigo] = useState("");
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!codigo.trim()) return;
-    onAdicionar(codigo);
+    const normalizado = normalizarCodigo(codigo);
+    if (!normalizado) return;
+    onAdicionar(normalizado);
     setCodigo("");
   }
 
@@ -20,8 +22,10 @@ export default function EntradaManual({ onAdicionar }) {
         autoComplete="off"
         enterKeyHint="done"
         aria-label="Código do produto"
+        spellCheck={false}
+        autoCapitalize="characters"
       />
-      <button type="submit" className="sc-btn sc-btn-ghost">
+      <button type="submit" className="sc-btn sc-btn-add">
         Adicionar
       </button>
     </form>

@@ -1,6 +1,6 @@
 let audioCtx;
 
-export function bipe(frequencia) {
+export function bipe(frequencia, duracao = 0.12) {
   try {
     audioCtx =
       audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -12,18 +12,18 @@ export function bipe(frequencia) {
     osc.connect(ganho);
     ganho.connect(audioCtx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.12);
+    osc.stop(audioCtx.currentTime + duracao);
   } catch {
     /* sem áudio */
   }
 }
 
 export function feedbackSucesso() {
-  bipe(880);
-  if (navigator.vibrate) navigator.vibrate(100);
+  bipe(880, 0.1);
+  if (navigator.vibrate) navigator.vibrate(80);
 }
 
 export function feedbackErro() {
-  bipe(220);
+  bipe(220, 0.14);
   if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
 }

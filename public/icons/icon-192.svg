@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="SmartCart">
+  <rect width="192" height="192" rx="40" fill="#0a2e28"/>
+  <g fill="none" stroke="#ecc44a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="72" cy="144" r="9" fill="#ecc44a" stroke="none"/>
+    <circle cx="132" cy="144" r="9" fill="#ecc44a" stroke="none"/>
+    <path d="M42 48h18l15.5 67.5a9 9 0 0 0 9 7.5h52.5a9 9 0 0 0 9-7.5L162 72H66"/>
+  </g>
+</svg>

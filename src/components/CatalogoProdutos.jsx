@@ -1,59 +1,66 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { listaProdutos } from "../data/produtos";
 import { moeda } from "../utils/moeda";
 
-const POR_PAGINA = 10;
-
 export default function CatalogoProdutos() {
-  const [pagina, setPagina] = useState(1);
-  const totalPaginas = Math.max(1, Math.ceil(listaProdutos.length / POR_PAGINA));
+  const [qrs, setQrs] = useState({});
 
-  const fatia = useMemo(() => {
-    const inicio = (pagina - 1) * POR_PAGINA;
-    return listaProdutos.slice(inicio, inicio + POR_PAGINA);
-  }, [pagina]);
+  useEffect(() => {
+    let cancelado = false;
+    async function gerar() {
+      const mapa = {};
+      for (const [codigo] of listaProdutos) {
+        try {
+          mapa[codigo] = await QRCode.toDataURL(codigo, {
+            width: 160,
+            margin: 1,
+            color: { dark: "#0a2e28", light: "#ffffff" },
+            errorCorrectionLevel: "M",
+          });
+        } catch {
+          mapa[codigo] = "";
+        }
+      }
+      if (!cancelado) setQrs(mapa);
+    }
+    gerar();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  function imprimir() {
+    window.print();
+  }
 
   return (
-    <details className="sc-catalog">
+    <details className="sc-catalog" open>
       <summary>Códigos dos produtos (teste)</summary>
       <p className="sc-hint">
-        Digite o código simples (ex.: <code>LEITE001</code>) ou escaneie o
-        código de barras. O mesmo código só é lido de novo depois de sair da
-        câmera.
+        Digite o código (ex.: <code>LEITE001</code>) ou escaneie o QR / código
+        de barras. Use a impressão para etiquetas da demonstração.
       </p>
-      <table>
-        <tbody>
-          {fatia.map(([codigo, p]) => (
-            <tr key={codigo}>
-              <td>
-                <code>{codigo}</code>
-              </td>
-              <td>{p.nome}</td>
-              <td>{moeda(p.preco)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="sc-pager">
-        <button
-          type="button"
-          className="sc-btn sc-btn-ghost"
-          disabled={pagina <= 1}
-          onClick={() => setPagina((p) => p - 1)}
-        >
-          Anterior
+
+      <div className="sc-catalog-toolbar no-print">
+        <button type="button" className="sc-btn sc-btn-ghost" onClick={imprimir}>
+          Imprimir QR codes
         </button>
-        <span>
-          Página {pagina} de {totalPaginas}
-        </span>
-        <button
-          type="button"
-          className="sc-btn sc-btn-ghost"
-          disabled={pagina >= totalPaginas}
-          onClick={() => setPagina((p) => p + 1)}
-        >
-          Próxima
-        </button>
+      </div>
+
+      <div className="sc-qr-grid print-area">
+        {listaProdutos.map(([codigo, p]) => (
+          <article key={codigo} className="sc-qr-card">
+            {qrs[codigo] ? (
+              <img src={qrs[codigo]} alt={`QR code de ${p.nome}`} />
+            ) : (
+              <div className="sc-qr-loading">Gerando…</div>
+            )}
+            <strong>{p.nome}</strong>
+            <code>{codigo}</code>
+            <span>{moeda(p.preco)}</span>
+          </article>
+        ))}
       </div>
     </details>
   );

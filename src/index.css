@@ -1,22 +1,24 @@
 :root {
-  --ink: #071f1b;
-  --ink-soft: #4a635d;
+  --ink: #0a2e28;
+  --ink-soft: #3a524c;
   --mint: #0f8f72;
   --mint-deep: #0b6b56;
-  --mint-glow: rgba(15, 143, 114, 0.22);
+  --mint-strong: #087a5f;
+  --mint-glow: rgba(15, 143, 114, 0.18);
   --leaf: #b8f0d8;
-  --sand: #eef5f1;
+  --sand: #e8f1ed;
   --paper: #ffffff;
-  --line: #d0e0da;
+  --line: #c5d6cf;
   --amber: #ecc44a;
   --amber-deep: #d4a82e;
-  --danger: #c0352b;
-  --shadow: 0 20px 50px rgba(7, 31, 27, 0.1);
-  --shadow-soft: 0 8px 24px rgba(7, 31, 27, 0.06);
-  --radius: 22px;
+  --danger: #b12e26;
+  --shadow: 0 16px 40px rgba(10, 46, 40, 0.1);
+  --shadow-soft: 0 8px 22px rgba(10, 46, 40, 0.06);
+  --radius: 20px;
   --radius-sm: 14px;
   --font: "Outfit", sans-serif;
   --display: "Source Serif 4", Georgia, serif;
+  --bar-h: 88px;
 }
 
 *,
@@ -36,12 +38,10 @@ body,
 body {
   font-family: var(--font);
   color: var(--ink);
-  background-color: #e8f1ed;
+  background-color: #e4efe9;
   background-image:
-    radial-gradient(ellipse 900px 480px at 0% -5%, #c5f0dd 0%, transparent 55%),
-    radial-gradient(ellipse 700px 420px at 100% 8%, #d5e4ef 0%, transparent 50%),
-    radial-gradient(ellipse 600px 400px at 50% 100%, #ddeee6 0%, transparent 45%),
-    linear-gradient(165deg, #f4faf7 0%, #e8f1ed 40%, #dfeae5 100%);
+    radial-gradient(ellipse 800px 420px at 0% 0%, #c8ecd9 0%, transparent 55%),
+    linear-gradient(165deg, #f3f9f6 0%, #e4efe9 55%, #d9e8e1 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }
@@ -55,11 +55,13 @@ textarea {
 button {
   cursor: pointer;
   border: none;
+  background: none;
 }
 
 button:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+summary:focus-visible {
   outline: 3px solid var(--amber);
   outline-offset: 2px;
 }
@@ -68,4 +70,14 @@ code {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-weight: 600;
   color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

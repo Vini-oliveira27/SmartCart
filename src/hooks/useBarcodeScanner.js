@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { normalizarCodigo } from "../data/produtos";
 
-/** Tempo sem detecção para considerar que o código saiu do campo de visão. */
-const SUMIU_MS = 700;
+/** Cooldown para o mesmo código (evita leituras duplicadas acidentais). */
+const COOLDOWN_MS = 1800;
 
 function formatosCodigoBarras() {
   const F = Html5QrcodeSupportedFormats;
@@ -19,19 +19,58 @@ function formatosCodigoBarras() {
   ];
 }
 
+function mensagemErroCamera(err) {
+  const texto = String(err?.message || err || "").toLowerCase();
+  if (!window.isSecureContext) {
+    return {
+      tipo: "permissao",
+      texto:
+        "A câmera só funciona em página segura (HTTPS ou localhost).",
+    };
+  }
+  if (
+    texto.includes("notallowed") ||
+    texto.includes("permission") ||
+    texto.includes("denied") ||
+    err?.name === "NotAllowedError"
+  ) {
+    return {
+      tipo: "permissao",
+      texto:
+        "Permissão de câmera negada. Libere o acesso nas configurações do navegador.",
+    };
+  }
+  if (
+    texto.includes("notfound") ||
+    texto.includes("requested device not found") ||
+    err?.name === "NotFoundError"
+  ) {
+    return {
+      tipo: "indisponivel",
+      texto: "Nenhuma câmera disponível neste dispositivo.",
+    };
+  }
+  return {
+    tipo: "indisponivel",
+    texto: "Não foi possível abrir a câmera. Tente novamente.",
+  };
+}
+
 /**
- * Só registra um código na primeira vez que ele entra na visão.
- * Para ler de novo o mesmo código, ele precisa sair da câmera e voltar.
+ * Scanner com mira ~60%, cooldown por código, pausa em segundo plano e lanterna.
  */
 export function useBarcodeScanner(elementId, onCodigo) {
   const [ativo, setAtivo] = useState(false);
   const [flash, setFlash] = useState(false);
-  const [erro, setErro] = useState("");
+  const [erro, setErro] = useState(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchDisponivel, setTorchDisponivel] = useState(false);
+
   const leitorRef = useRef(null);
   const onCodigoRef = useRef(onCodigo);
-  const lastSeenRef = useRef(new Map());
-  const bloqueadosRef = useRef(new Set());
-  const limpezaRef = useRef(null);
+  const cooldownRef = useRef(new Map());
+  const querAtivoRef = useRef(false);
+  const pausadoPorAbaRef = useRef(false);
 
   useEffect(() => {
     onCodigoRef.current = onCodigo;
@@ -39,55 +78,50 @@ export function useBarcodeScanner(elementId, onCodigo) {
 
   const dispararFlash = useCallback(() => {
     setFlash(true);
-    window.setTimeout(() => setFlash(false), 320);
+    window.setTimeout(() => setFlash(false), 380);
   }, []);
 
-  const processar = useCallback((textoLido) => {
-    const codigo = normalizarCodigo(textoLido);
-    if (!codigo) return;
+  const processar = useCallback(
+    (textoLido) => {
+      const codigo = normalizarCodigo(textoLido);
+      if (!codigo) return;
 
-    const agora = Date.now();
-    lastSeenRef.current.set(codigo, agora);
-
-    // Ainda no campo de visão após leitura anterior → ignora
-    if (bloqueadosRef.current.has(codigo)) return;
-
-    bloqueadosRef.current.add(codigo);
-    onCodigoRef.current?.(codigo, dispararFlash);
-  }, [dispararFlash]);
-
-  useEffect(() => {
-    if (!ativo) return undefined;
-
-    limpezaRef.current = window.setInterval(() => {
       const agora = Date.now();
-      for (const [codigo, vistoEm] of lastSeenRef.current.entries()) {
-        if (agora - vistoEm >= SUMIU_MS) {
-          lastSeenRef.current.delete(codigo);
-          // Saiu da visão → libera para nova leitura
-          bloqueadosRef.current.delete(codigo);
-        }
-      }
-    }, 200);
+      const ultimo = cooldownRef.current.get(codigo) || 0;
+      if (agora - ultimo < COOLDOWN_MS) return;
 
-    return () => {
-      if (limpezaRef.current) window.clearInterval(limpezaRef.current);
-    };
-  }, [ativo]);
+      cooldownRef.current.set(codigo, agora);
+      onCodigoRef.current?.(codigo, dispararFlash);
+    },
+    [dispararFlash]
+  );
 
-  const parar = useCallback(async () => {
-    if (limpezaRef.current) {
-      window.clearInterval(limpezaRef.current);
-      limpezaRef.current = null;
+  const detectarTorch = useCallback(async () => {
+    const leitor = leitorRef.current;
+    if (!leitor) {
+      setTorchDisponivel(false);
+      return;
     }
-    lastSeenRef.current.clear();
-    bloqueadosRef.current.clear();
+    try {
+      const caps =
+        typeof leitor.getRunningTrackCapabilities === "function"
+          ? leitor.getRunningTrackCapabilities()
+          : null;
+      setTorchDisponivel(Boolean(caps && "torch" in caps));
+    } catch {
+      setTorchDisponivel(false);
+    }
+  }, []);
 
+  const pararInterno = useCallback(async () => {
     const leitor = leitorRef.current;
     leitorRef.current = null;
+    setTorchOn(false);
+    setTorchDisponivel(false);
+
     if (leitor) {
       try {
-        await leitor.stop();
+        if (leitor.isScanning) await leitor.stop();
         leitor.clear();
       } catch (err) {
         console.error("Erro ao parar a câmera:", err);
@@ -96,9 +130,9 @@ export function useBarcodeScanner(elementId, onCodigo) {
     setAtivo(false);
   }, []);
 
-  const iniciar = useCallback(async () => {
-    if (ativo || leitorRef.current) return false;
-    setErro("");
+  const iniciarInterno = useCallback(async () => {
+    if (leitorRef.current) return false;
+    setErro(null);
 
     const leitor = new Html5Qrcode(elementId);
     leitorRef.current = leitor;
@@ -106,10 +140,11 @@ export function useBarcodeScanner(elementId, onCodigo) {
     const config = {
       fps: 10,
       qrbox: (largura, altura) => {
-        const w = Math.floor(Math.min(largura * 0.92, 360));
-        const h = Math.floor(Math.min(altura * 0.28, 140));
-        return { width: w, height: Math.max(h, 80) };
+        const size = Math.floor(Math.min(largura, altura) * 0.6);
+        const lado = Math.max(size, 160);
+        return { width: lado, height: lado };
       },
+      aspectRatio: 1,
       formatsToSupport: formatosCodigoBarras(),
       experimentalFeatures: {
         useBarCodeDetectorIfSupported: true,
@@ -124,6 +159,7 @@ export function useBarcodeScanner(elementId, onCodigo) {
         () => {}
       );
       setAtivo(true);
+      await detectarTorch();
       return true;
     } catch (err) {
       console.error("Erro ao iniciar a câmera:", err);
@@ -133,23 +169,91 @@ export function useBarcodeScanner(elementId, onCodigo) {
       } catch {
         /* ignore */
       }
-      const semHttps = !window.isSecureContext;
-      setErro(
-        semHttps
-          ? "A câmera só funciona em página segura (HTTPS ou localhost)."
-          : "Não foi possível abrir a câmera. Permita o acesso no navegador."
-      );
+      setErro(mensagemErroCamera(err));
       setAtivo(false);
       return false;
     }
-  }, [ativo, elementId, processar]);
+  }, [detectarTorch, elementId, processar]);
 
-  useEffect(() => () => {
-    if (leitorRef.current) {
-      leitorRef.current.stop().catch(() => {});
-      leitorRef.current = null;
+  const parar = useCallback(async () => {
+    querAtivoRef.current = false;
+    pausadoPorAbaRef.current = false;
+    cooldownRef.current.clear();
+    await pararInterno();
+  }, [pararInterno]);
+
+  const iniciar = useCallback(async () => {
+    querAtivoRef.current = true;
+    pausadoPorAbaRef.current = false;
+    return iniciarInterno();
+  }, [iniciarInterno]);
+
+  const tentarNovamente = useCallback(async () => {
+    setErro(null);
+    await pararInterno();
+    querAtivoRef.current = true;
+    return iniciarInterno();
+  }, [iniciarInterno, pararInterno]);
+
+  const alternarTorch = useCallback(async () => {
+    const leitor = leitorRef.current;
+    if (!leitor || !torchDisponivel) return;
+    const proximo = !torchOn;
+    try {
+      if (typeof leitor.applyVideoConstraints === "function") {
+        await leitor.applyVideoConstraints({
+          advanced: [{ torch: proximo }],
+        });
+        setTorchOn(proximo);
+      }
+    } catch (err) {
+      console.warn("Lanterna indisponível:", err);
+      setTorchDisponivel(false);
     }
-  }, []);
+  }, [torchDisponivel, torchOn]);
 
-  return { ativo, flash, erro, iniciar, parar };
+  // Pausa ao ir para segundo plano; retoma ao voltar.
+  useEffect(() => {
+    async function onVisibilidade() {
+      if (document.hidden) {
+        if (querAtivoRef.current && leitorRef.current) {
+          pausadoPorAbaRef.current = true;
+          await pararInterno();
+        }
+        return;
+      }
+
+      if (pausadoPorAbaRef.current && querAtivoRef.current) {
+        pausadoPorAbaRef.current = false;
+        await iniciarInterno();
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibilidade);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilidade);
+  }, [iniciarInterno, pararInterno]);
+
+  useEffect(
+    () => () => {
+      querAtivoRef.current = false;
+      if (leitorRef.current) {
+        leitorRef.current.stop().catch(() => {});
+        leitorRef.current = null;
+      }
+    },
+    []
+  );
+
+  return {
+    ativo,
+    flash,
+    erro,
+    iniciar,
+    parar,
+    tentarNovamente,
+    torchOn,
+    torchDisponivel,
+    alternarTorch,
+  };
 }
