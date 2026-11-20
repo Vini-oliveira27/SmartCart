@@ -5,12 +5,11 @@ import EntradaManual from "./components/EntradaManual";
 import Carrinho from "./components/Carrinho";
 import BarraTotal from "./components/BarraTotal";
 import CheckoutDialog from "./components/CheckoutDialog";
-import Esp32Panel from "./components/Esp32Panel";
 import CatalogoProdutos from "./components/CatalogoProdutos";
+import OrcamentoPanel from "./components/OrcamentoPanel";
 import Toast from "./components/Toast";
 import { useCarrinho } from "./hooks/useCarrinho";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
-import { useEsp32Mqtt } from "./hooks/useEsp32Mqtt";
 import { bancoProdutos } from "./data/produtos";
 import { moeda } from "./utils/moeda";
 import { feedbackErro, feedbackSucesso } from "./utils/feedback";
@@ -87,7 +86,6 @@ export default function App() {
   );
 
   const scanner = useBarcodeScanner(READER_ID, handleCodigo);
-  const esp = useEsp32Mqtt(total, quantidadeItens);
 
   const nivelOrcamento = useMemo(() => {
     if (!orcamentoCentavos || orcamentoCentavos <= 0) return "";
@@ -206,14 +204,7 @@ export default function App() {
                 Fechar
               </button>
             </div>
-            <Esp32Panel
-              codigo={esp.codigo}
-              onCodigoChange={esp.setCodigo}
-              codigoTeste={esp.codigoTeste}
-              fase={esp.fase}
-              statusTexto={esp.statusTexto}
-              onConectar={esp.conectar}
-              onTentarNovamente={esp.tentarNovamente}
+            <OrcamentoPanel
               orcamentoCentavos={orcamentoCentavos}
               onOrcamentoChange={definirOrcamentoReais}
             />

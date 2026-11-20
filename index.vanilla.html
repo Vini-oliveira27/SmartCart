@@ -8,7 +8,6 @@
   <title>SmartCart</title>
 
   <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 
   <style>
     :root {
@@ -337,48 +336,6 @@
       flex: 1;
     }
 
-    .esp32-box {
-      margin-top: 16px;
-      padding: 14px;
-      background: var(--papel);
-      border-radius: 14px;
-      box-shadow: 0 1px 0 var(--linha);
-    }
-    .esp32-box h2 {
-      font-size: 16px;
-      margin-bottom: 8px;
-    }
-    .esp32-box p {
-      font-size: 13px;
-      color: var(--tinta-suave);
-      margin-bottom: 10px;
-    }
-    .esp32-linha {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .esp32-linha input {
-      flex: 1;
-      min-width: 0;
-      font: inherit;
-      padding: 10px 12px;
-      border: 2px solid var(--linha);
-      border-radius: 10px;
-      background: #fff;
-    }
-    .esp32-linha button {
-      padding: 10px 14px;
-      min-height: 44px;
-      font-size: 14px;
-    }
-    #esp32-status {
-      margin-top: 8px;
-      font-size: 13px;
-      color: var(--tinta-suave);
-    }
-    #esp32-status.ok { color: var(--verde); font-weight: 600; }
-    #esp32-status.erro { color: var(--vermelho); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -427,25 +384,6 @@
     <div class="acoes-carrinho">
       <button id="btn-limpar" class="btn-secundario" type="button">Limpar carrinho</button>
     </div>
-  </section>
-
-  <section class="esp32-box" aria-labelledby="titulo-esp32">
-    <h2 id="titulo-esp32">Display ESP32</h2>
-    <p>
-      Envia o total da compra para o TFT. Use o mesmo código
-      configurado no firmware (<code>CODIGO_CARRINHO</code>).
-    </p>
-    <div class="esp32-linha">
-      <input
-        id="codigo-carrinho"
-        type="text"
-        value="demo"
-        autocomplete="off"
-        aria-label="Código do carrinho para o ESP32"
-      >
-      <button id="btn-esp32" class="btn-secundario" type="button">Conectar</button>
-    </div>
-    <div id="esp32-status">Desconectado do display.</div>
   </section>
 
   <details>
@@ -509,11 +447,9 @@
     };
 
     const CHAVE_STORAGE = "smartcart.carrinho";
-    const CHAVE_CODIGO_ESP = "smartcart.codigoCarrinho";
     const ESPERA_MESMO_CODIGO_MS = 2000;
     const PRODUTOS_POR_PAGINA = 10;
     const MSG_CAMERA = "Câmera ativa — aponte para o código de barras";
-    const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
 
     const moeda = (v) =>
       v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -524,8 +460,6 @@
     const listaProdutos = Object.entries(bancoProdutos);
     let paginaProdutos = 1;
     let carrinho = [];
-    let mqttClient = null;
-    let espConectado = false;
 
     /** Aceita código simples (LEITE001) ou EAN-13. Retorna o id do produto. */
     function resolverIdProduto(codigoLido) {
@@ -636,104 +570,7 @@
       $("btn-finalizar").disabled = carrinho.length === 0;
       $("btn-limpar").style.display = carrinho.length === 0 ? "none" : "";
       salvarCarrinho();
-      enviarTotalParaEsp32();
     }
-
-    function codigoCarrinho() {
-      const raw = ($("codigo-carrinho").value || "demo").trim().toLowerCase();
-      return raw.replace(/[^a-z0-9_-]/g, "") || "demo";
-    }
-
-    function setEspStatus(texto, tipo) {
-      const el = $("esp32-status");
-      el.textContent = texto;
-      el.className = tipo || "";
-    }
-
-    function enviarTotalParaEsp32() {
-      if (!espConectado || !mqttClient || !mqttClient.connected) return;
-      const codigo = codigoCarrinho();
-      const total = calcularTotal().toFixed(2);
-      const itens = String(contarItens());
-      try {
-        mqttClient.publish(`smartcart/${codigo}/total`, total, { qos: 0, retain: true });
-        mqttClient.publish(`smartcart/${codigo}/itens`, itens, { qos: 0, retain: true });
-      } catch (e) {
-        console.warn("Falha ao enviar total ao ESP32:", e);
-      }
-    }
-
-    function encerrarMqtt() {
-      if (mqttClient) {
-        try { mqttClient.end(true); } catch (e) { /* ignore */ }
-        mqttClient = null;
-      }
-    }
-
-    function desconectarEsp32() {
-      encerrarMqtt();
-      espConectado = false;
-      $("btn-esp32").textContent = "Conectar";
-      setEspStatus("Desconectado do display.");
-    }
-
-    function conectarEsp32() {
-      if (typeof mqtt === "undefined") {
-        setEspStatus("Biblioteca MQTT não carregou. Recarregue a página.", "erro");
-        return;
-      }
-
-      if (espConectado) {
-        desconectarEsp32();
-        return;
-      }
-
-      const codigo = codigoCarrinho();
-      $("codigo-carrinho").value = codigo;
-      try {
-        localStorage.setItem(CHAVE_CODIGO_ESP, codigo);
-      } catch (e) { /* ignore */ }
-
-      encerrarMqtt();
-      espConectado = false;
-      setEspStatus("Conectando ao display…");
-
-      mqttClient = mqtt.connect(MQTT_URL, {
-        clientId: "smartcart-web-" + Math.random().toString(16).slice(2, 10),
-        clean: true,
-        connectTimeout: 8000,
-        reconnectPeriod: 3000
-      });
-
-      mqttClient.on("connect", () => {
-        espConectado = true;
-        $("btn-esp32").textContent = "Desconectar";
-        setEspStatus(
-          "Conectado — total sendo enviado ao ESP32 (" + codigo + ").",
-          "ok"
-        );
-        enviarTotalParaEsp32();
-      });
-
-      mqttClient.on("reconnect", () => {
-        setEspStatus("Reconectando ao display…");
-      });
-
-      mqttClient.on("error", (err) => {
-        console.warn(err);
-        setEspStatus("Erro na conexão com o display.", "erro");
-      });
-
-      mqttClient.on("close", () => {
-        if (espConectado) {
-          espConectado = false;
-          $("btn-esp32").textContent = "Conectar";
-          setEspStatus("Conexão com o display encerrada.", "erro");
-        }
-      });
-    }
-
-    $("btn-esp32").addEventListener("click", conectarEsp32);
 
     $("itens").addEventListener("click", (e) => {
       const botao = e.target.closest("button[data-acao]");
@@ -986,11 +823,6 @@
       paginaProdutos += 1;
       renderTabelaProdutos();
     });
-
-    try {
-      const salvoEsp = localStorage.getItem(CHAVE_CODIGO_ESP);
-      if (salvoEsp) $("codigo-carrinho").value = salvoEsp;
-    } catch (e) { /* ignore */ }
 
     renderTabelaProdutos();
     carregarCarrinho();

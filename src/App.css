@@ -494,7 +494,7 @@
 }
 
 .sc-manual input,
-.sc-esp-row input {
+.sc-orcamento-row input {
   flex: 1;
   min-width: 0;
   min-height: 48px;
@@ -636,8 +636,8 @@
   font-weight: 600;
 }
 
-/* ---------- ESP / catalog ---------- */
-.sc-esp {
+/* ---------- Orçamento / catalog ---------- */
+.sc-orcamento-panel {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -645,70 +645,22 @@
   margin-bottom: 16px;
 }
 
-.sc-esp h2 {
+.sc-orcamento-panel h2 {
   font-size: 0.95rem;
   margin-bottom: 6px;
 }
 
-.sc-esp > p {
+.sc-orcamento-panel > p {
   font-size: 0.86rem;
   color: var(--ink-soft);
   margin-bottom: 12px;
   line-height: 1.4;
 }
 
-.sc-esp-row {
+.sc-orcamento-row {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-.sc-esp-row .sc-btn {
-  min-height: 48px;
-  padding: 10px 14px;
-  font-size: 0.9rem;
-}
-
-.sc-esp-status {
-  margin-top: 10px;
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.sc-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #c0352b;
-  flex-shrink: 0;
-}
-
-.sc-esp-status-ok .sc-dot {
-  background: #1aa37a;
-  box-shadow: 0 0 0 4px rgba(26, 163, 122, 0.2);
-}
-
-.sc-esp-status-pendente .sc-dot {
-  background: var(--amber-deep);
-  animation: sc-pulse 1.2s ease-in-out infinite;
-}
-
-.sc-esp-status-erro .sc-dot {
-  background: #c0352b;
-}
-
-.sc-esp-status-ok {
-  color: var(--mint-deep);
-  font-weight: 600;
-}
-
-.sc-esp-status-erro {
-  color: var(--danger);
-  font-weight: 600;
 }
 
 .sc-link-btn {
@@ -1081,7 +1033,7 @@
   .sc-panel:not(.sc-panel-tech),
   .sc-totalbar,
   .sc-toast,
-  .sc-esp,
+  .sc-orcamento-panel,
   .sc-tech-close,
   .no-print,
   .sc-gear {
