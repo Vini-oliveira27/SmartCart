@@ -6,10 +6,13 @@ import Carrinho from "./components/Carrinho";
 import BarraTotal from "./components/BarraTotal";
 import CheckoutDialog from "./components/CheckoutDialog";
 import CatalogoProdutos from "./components/CatalogoProdutos";
+import Esp32Panel from "./components/Esp32Panel";
+import ControlesCarrinho from "./components/ControlesCarrinho";
 import OrcamentoPanel from "./components/OrcamentoPanel";
 import Toast from "./components/Toast";
 import { useCarrinho } from "./hooks/useCarrinho";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
+import { useEsp32Mqtt } from "./hooks/useEsp32Mqtt";
 import { useTheme } from "./hooks/useTheme";
 import { bancoProdutos } from "./data/produtos";
 import { moeda } from "./utils/moeda";
@@ -87,6 +90,7 @@ export default function App() {
   );
 
   const scanner = useBarcodeScanner(READER_ID, handleCodigo);
+  const esp = useEsp32Mqtt(total, quantidadeItens);
   const { escuro, alternar: alternarTema } = useTheme();
 
   const nivelOrcamento = useMemo(() => {
@@ -192,6 +196,22 @@ export default function App() {
         <section className="sc-panel">
           <div className="sc-panel-label">
             <span>03</span>
+            <h2>Direção</h2>
+          </div>
+          <ControlesCarrinho
+            conectado={esp.conectado}
+            comandoAtual={esp.comandoAtual}
+            onComando={esp.enviarComando}
+            codigo={esp.codigo}
+            onCodigoChange={esp.setCodigo}
+            status={esp.status}
+            onConectar={esp.conectar}
+          />
+        </section>
+
+        <section className="sc-panel">
+          <div className="sc-panel-label">
+            <span>04</span>
             <h2>Carrinho</h2>
           </div>
           <Carrinho
@@ -208,7 +228,7 @@ export default function App() {
         {modoTecnico && (
           <section className="sc-panel sc-panel-muted sc-panel-tech">
             <div className="sc-panel-label">
-              <span>04</span>
+              <span>05</span>
               <h2>Integrações</h2>
               <button
                 type="button"
@@ -219,6 +239,13 @@ export default function App() {
                 Fechar
               </button>
             </div>
+            <Esp32Panel
+              codigo={esp.codigo}
+              onCodigoChange={esp.setCodigo}
+              conectado={esp.conectado}
+              status={esp.status}
+              onConectar={esp.conectar}
+            />
             <CatalogoProdutos />
           </section>
         )}
