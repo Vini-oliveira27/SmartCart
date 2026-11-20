@@ -10,6 +10,7 @@ import OrcamentoPanel from "./components/OrcamentoPanel";
 import Toast from "./components/Toast";
 import { useCarrinho } from "./hooks/useCarrinho";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
+import { useTheme } from "./hooks/useTheme";
 import { bancoProdutos } from "./data/produtos";
 import { moeda } from "./utils/moeda";
 import { feedbackErro, feedbackSucesso } from "./utils/feedback";
@@ -86,6 +87,7 @@ export default function App() {
   );
 
   const scanner = useBarcodeScanner(READER_ID, handleCodigo);
+  const { escuro, alternar: alternarTema } = useTheme();
 
   const nivelOrcamento = useMemo(() => {
     if (!orcamentoCentavos || orcamentoCentavos <= 0) return "";
@@ -142,6 +144,8 @@ export default function App() {
         <Header
           compact={scanner.ativo}
           onAbrirTecnico={() => setModoTecnico(true)}
+          temaEscuro={escuro}
+          onAlternarTema={alternarTema}
         />
 
         <Toast

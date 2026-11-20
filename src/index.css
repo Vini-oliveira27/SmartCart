@@ -1,24 +1,73 @@
-:root {
-  --ink: #0a2e28;
-  --ink-soft: #3a524c;
-  --mint: #0f8f72;
-  --mint-deep: #0b6b56;
-  --mint-strong: #087a5f;
-  --mint-glow: rgba(15, 143, 114, 0.18);
-  --leaf: #b8f0d8;
-  --sand: #e8f1ed;
-  --paper: #ffffff;
-  --line: #c5d6cf;
-  --amber: #ecc44a;
-  --amber-deep: #d4a82e;
+:root,
+[data-theme="light"] {
+  --ink: #152447;
+  --ink-soft: #5a6478;
+  --mint: #2f4db5;
+  --mint-deep: #1a368d;
+  --mint-strong: #1e40a8;
+  --mint-glow: rgba(26, 54, 141, 0.16);
+  --leaf: #d6def7;
+  --sand: #ebe9e3;
+  --paper: #f7f5f0;
+  --paper-muted: rgba(247, 245, 240, 0.88);
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-strong: #ffffff;
+  --line: #cdc9be;
+  --amber: #d4a017;
+  --amber-deep: #b8860b;
   --danger: #b12e26;
-  --shadow: 0 16px 40px rgba(10, 46, 40, 0.1);
-  --shadow-soft: 0 8px 22px rgba(10, 46, 40, 0.06);
+  --shadow: 0 16px 40px rgba(21, 36, 71, 0.1);
+  --shadow-soft: 0 8px 22px rgba(21, 36, 71, 0.06);
+  --btn-shadow: 0 8px 20px rgba(30, 64, 168, 0.28);
+  --logo-shadow: 0 10px 24px rgba(21, 36, 71, 0.28);
+  --disabled-bg: #8a909c;
+  --disabled-fg: #eef0f4;
+  --toast-ok-bg: #eef2fb;
+  --toast-erro-bg: #fff5f4;
+  --totalbar-bg: rgba(247, 245, 240, 0.94);
+  --backdrop: rgba(21, 36, 71, 0.55);
+  --body-bg: #eceae4;
+  --body-glow: rgba(198, 208, 232, 0.55);
+  --grain-opacity: 0.42;
+  --grain-blend: multiply;
   --radius: 20px;
   --radius-sm: 14px;
   --font: "Outfit", sans-serif;
   --display: "Source Serif 4", Georgia, serif;
   --bar-h: 88px;
+}
+
+[data-theme="dark"] {
+  --ink: #e8e6e0;
+  --ink-soft: #a3acbd;
+  --mint: #7b93f0;
+  --mint-deep: #9aaff7;
+  --mint-strong: #4d6ef0;
+  --mint-glow: rgba(123, 147, 240, 0.22);
+  --leaf: #2a3558;
+  --sand: #1c2233;
+  --paper: #151a27;
+  --paper-muted: rgba(21, 26, 39, 0.9);
+  --surface: rgba(28, 34, 51, 0.88);
+  --surface-strong: #222a3d;
+  --line: #343c52;
+  --amber: #e0b43a;
+  --amber-deep: #c9971f;
+  --danger: #ef6b63;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.22);
+  --btn-shadow: 0 8px 20px rgba(77, 110, 240, 0.32);
+  --logo-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  --disabled-bg: #4a5163;
+  --disabled-fg: #b8becb;
+  --toast-ok-bg: #1e2740;
+  --toast-erro-bg: #3a2224;
+  --totalbar-bg: rgba(21, 26, 39, 0.96);
+  --backdrop: rgba(6, 8, 14, 0.72);
+  --body-bg: #121722;
+  --body-glow: rgba(42, 58, 110, 0.28);
+  --grain-opacity: 0.22;
+  --grain-blend: soft-light;
 }
 
 *,
@@ -36,14 +85,40 @@ body,
 }
 
 body {
+  position: relative;
   font-family: var(--font);
   color: var(--ink);
-  background-color: #e4efe9;
+  background-color: var(--body-bg);
   background-image:
-    radial-gradient(ellipse 800px 420px at 0% 0%, #c8ecd9 0%, transparent 55%),
-    linear-gradient(165deg, #f3f9f6 0%, #e4efe9 55%, #d9e8e1 100%);
+    radial-gradient(ellipse 820px 460px at 0% 0%, var(--body-glow) 0%, transparent 58%),
+    linear-gradient(165deg, #f2f0ea 0%, var(--body-bg) 48%, #e4e1d9 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(ellipse 820px 460px at 0% 0%, var(--body-glow) 0%, transparent 58%),
+    linear-gradient(165deg, #171d2b 0%, var(--body-bg) 50%, #0f131c 100%);
+}
+
+/* Textura de papel reciclado (fibras / pontinhos) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.15 0 0 0 0 0.16 0 0 0 0 0.2 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 button,

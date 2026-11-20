@@ -3,7 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a2e28" />
+    <meta name="theme-color" content="#eceae4" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("smartcart.theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", t === "dark" ? "#121722" : "#eceae4");
+        } catch (e) {}
+      })();
+    </script>
     <meta
       name="description"
       content="SmartCart — escaneie produtos e some o total em tempo real."
