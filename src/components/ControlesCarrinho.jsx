@@ -17,60 +17,62 @@ export default function ControlesCarrinho({
   onConectar,
 }) {
   const [ativo, setAtivo] = useState("parar");
-  const holdRef = useRef(null);
-  const cmdRef = useRef("parar");
   const holdingRef = useRef(false);
+  const cmdRef = useRef("parar");
+  const beatRef = useRef(null);
   const onComandoRef = useRef(onComando);
 
   useEffect(() => {
     onComandoRef.current = onComando;
   }, [onComando]);
 
-  useEffect(() => {
-    function soltarGlobal() {
-      if (!holdingRef.current) return;
-      holdingRef.current = false;
-      if (holdRef.current) {
-        window.clearInterval(holdRef.current);
-        holdRef.current = null;
-      }
-      cmdRef.current = "parar";
-      setAtivo("parar");
-      onComandoRef.current?.("parar");
+  function limparBeat() {
+    if (beatRef.current) {
+      window.clearInterval(beatRef.current);
+      beatRef.current = null;
     }
+  }
 
-    window.addEventListener("pointerup", soltarGlobal);
-    window.addEventListener("pointercancel", soltarGlobal);
-    window.addEventListener("blur", soltarGlobal);
+  function parar() {
+    if (!holdingRef.current && cmdRef.current === "parar") return;
+    holdingRef.current = false;
+    limparBeat();
+    cmdRef.current = "parar";
+    setAtivo("parar");
+    onComandoRef.current?.("parar");
+  }
 
+  useEffect(() => {
+    function onUp() {
+      if (holdingRef.current) parar();
+    }
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
     return () => {
-      window.removeEventListener("pointerup", soltarGlobal);
-      window.removeEventListener("pointercancel", soltarGlobal);
-      window.removeEventListener("blur", soltarGlobal);
-      if (holdRef.current) window.clearInterval(holdRef.current);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("blur", onUp);
+      limparBeat();
       if (holdingRef.current) onComandoRef.current?.("parar");
     };
   }, []);
 
-  function iniciarHold(cmd) {
+  function iniciar(cmd) {
     if (!conectado) return;
 
-    if (holdRef.current) {
-      window.clearInterval(holdRef.current);
-      holdRef.current = null;
-    }
-
+    // Um único "frente" trava o motor no ESP; heartbeat só renova segurança
     holdingRef.current = cmd !== "parar";
     cmdRef.current = cmd;
     setAtivo(cmd);
     onComandoRef.current?.(cmd);
 
-    // Mantém o comando vivo no ESP32 enquanto segura
+    limparBeat();
     if (cmd !== "parar") {
-      holdRef.current = window.setInterval(() => {
+      beatRef.current = window.setInterval(() => {
         if (!holdingRef.current) return;
         onComandoRef.current?.(cmdRef.current);
-      }, 150);
+      }, 800);
     } else {
       holdingRef.current = false;
     }
@@ -116,7 +118,7 @@ export default function ControlesCarrinho({
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              iniciarHold(b.id);
+              iniciar(b.id);
             }}
             onContextMenu={(e) => e.preventDefault()}
           >

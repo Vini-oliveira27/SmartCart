@@ -2,16 +2,14 @@
  * SmartCart — motores DC 24V (BTS7960)
  *
  * Controles:
- *   1) Joystick local (analógico)
- *   2) Site via MQTT  → tópico smartcart/<CODIGO>/cmd
- *      valores: frente | tras | esquerda | direita | parar
+ *   1) Site via MQTT  → smartcart/<CODIGO>/cmd
+ *      frente | tras | esquerda | direita | parar
+ *   2) Joystick local (opcional — desligado por padrão)
  *
- * Se chegar comando MQTT recente, ele tem prioridade sobre o joystick.
- * Se o site parar de mandar comando por ~450ms, o carrinho para (segurança).
+ * Comando remoto fica "travado" até receber "parar"
+ * (assim o motor gira contínuo, sem pulsar).
  *
- * Bibliotecas: PubSubClient
- *
- * Ligações BTS7960: ver comentários abaixo (GND comum; 24V só nos drivers).
+ * Biblioteca: PubSubClient
  */
 
 #include <WiFi.h>
@@ -19,46 +17,46 @@
 #include <cstring>
 
 // ========== AJUSTE AQUI ==========
-const char* WIFI_SSID       = "netnormar";
-const char* WIFI_SENHA      = "pobreimundo";
-const char* CODIGO_CARRINHO = "demo"; // igual ao site
+const char* WIFI_SSID       = "SUA_REDE_WIFI";
+const char* WIFI_SENHA      = "SUA_SENHA_WIFI";
+const char* CODIGO_CARRINHO = "demo";
 
 const char* MQTT_HOST = "broker.hivemq.com";
 const uint16_t MQTT_PORT = 1883;
 
-const int VELOCIDADE_REMOTA = 200; // 0..255 ao controlar pelo site
-const unsigned long TIMEOUT_CMD_MS = 900; // margem enquanto o site reenvia
+const int VELOCIDADE_REMOTA = 220; // 0..255
+const unsigned long TIMEOUT_SEGURANCA_MS = 5000; // para se o site sumir
+
+// true só se o joystick estiver fisicamente ligado ao ESP32
+const bool USAR_JOYSTICK = false;
 // =================================
 
-// Joystick
 const int PIN_JOY_X = 34;
 const int PIN_JOY_Y = 35;
 const int JOY_CENTRO = 2048;
 const int JOY_MAX = 2047;
 const int DEADZONE = 250;
 
-// BTS7960 — Motor A (esquerdo)
 const int MOTOR_A_RPWM = 26;
 const int MOTOR_A_LPWM = 27;
 const int MOTOR_A_REN  = 14;
 const int MOTOR_A_LEN  = 12;
 
-// BTS7960 — Motor B (direito)
 const int MOTOR_B_RPWM = 25;
 const int MOTOR_B_LPWM = 33;
 const int MOTOR_B_REN  = 13;
 const int MOTOR_B_LEN  = 15;
 
-const int PWM_FREQ = 5000;
+const int PWM_FREQ = 20000; // 20 kHz — menos “zumbido”, giro mais limpo
 const int PWM_RES  = 8;
 const int PWM_MAX  = 255;
-const int PAUSA_INVERSAO_MS = 120;
 
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
 char topicoCmd[80];
 char comandoRemoto[16] = "parar";
+bool remotoAtivo = false;
 unsigned long ultimoCmdMs = 0;
 
 int sentidoA = 0;
@@ -69,12 +67,60 @@ unsigned long ultimoMqttMs = 0;
 void moverBTS7960(int rpwm, int lpwm, int velocidade);
 void pararCanal(int rpwm, int lpwm);
 void pararTudo();
-void acionarMotorSeguro(int rpwm, int lpwm, int velocidade, int* sentidoAtual, char motorId);
-int sinal(int v);
+void aplicarDirecao(int velA, int velB);
+void comandoParaMotores(const char* cmd, int* velA, int* velB);
+
+void moverBTS7960(int rpwm, int lpwm, int velocidade) {
+  int pwm = abs(velocidade);
+  if (pwm > PWM_MAX) pwm = PWM_MAX;
+
+  if (velocidade > 0) {
+    ledcWrite(rpwm, pwm);
+    ledcWrite(lpwm, 0);
+  } else if (velocidade < 0) {
+    ledcWrite(rpwm, 0);
+    ledcWrite(lpwm, pwm);
+  } else {
+    ledcWrite(rpwm, 0);
+    ledcWrite(lpwm, 0);
+  }
+}
+
+void pararCanal(int rpwm, int lpwm) {
+  moverBTS7960(rpwm, lpwm, 0);
+}
+
+void pararTudo() {
+  pararCanal(MOTOR_A_RPWM, MOTOR_A_LPWM);
+  pararCanal(MOTOR_B_RPWM, MOTOR_B_LPWM);
+  sentidoA = 0;
+  sentidoB = 0;
+}
 
 void aplicarDirecao(int velA, int velB) {
-  acionarMotorSeguro(MOTOR_A_RPWM, MOTOR_A_LPWM, velA, &sentidoA, 'A');
-  acionarMotorSeguro(MOTOR_B_RPWM, MOTOR_B_LPWM, velB, &sentidoB, 'B');
+  // Motor A
+  if (velA > 0) {
+    sentidoA = 1;
+    moverBTS7960(MOTOR_A_RPWM, MOTOR_A_LPWM, velA);
+  } else if (velA < 0) {
+    sentidoA = -1;
+    moverBTS7960(MOTOR_A_RPWM, MOTOR_A_LPWM, velA);
+  } else {
+    sentidoA = 0;
+    pararCanal(MOTOR_A_RPWM, MOTOR_A_LPWM);
+  }
+
+  // Motor B
+  if (velB > 0) {
+    sentidoB = 1;
+    moverBTS7960(MOTOR_B_RPWM, MOTOR_B_LPWM, velB);
+  } else if (velB < 0) {
+    sentidoB = -1;
+    moverBTS7960(MOTOR_B_RPWM, MOTOR_B_LPWM, velB);
+  } else {
+    sentidoB = 0;
+    pararCanal(MOTOR_B_RPWM, MOTOR_B_LPWM);
+  }
 }
 
 void comandoParaMotores(const char* cmd, int* velA, int* velB) {
@@ -83,22 +129,13 @@ void comandoParaMotores(const char* cmd, int* velA, int* velB) {
   *velB = 0;
 
   if (strcmp(cmd, "frente") == 0) {
-    *velA = v;
-    *velB = v;
+    *velA = v; *velB = v;
   } else if (strcmp(cmd, "tras") == 0) {
-    *velA = -v;
-    *velB = -v;
+    *velA = -v; *velB = -v;
   } else if (strcmp(cmd, "esquerda") == 0) {
-    // A frente, B ré  → gira esquerda
-    *velA = v;
-    *velB = -v;
+    *velA = v; *velB = -v;
   } else if (strcmp(cmd, "direita") == 0) {
-    *velA = -v;
-    *velB = v;
-  } else {
-    // parar / desconhecido
-    *velA = 0;
-    *velB = 0;
+    *velA = -v; *velB = v;
   }
 }
 
@@ -114,34 +151,42 @@ void aoReceberMqtt(char* topic, byte* payload, unsigned int length) {
     if (msg[i] >= 'A' && msg[i] <= 'Z') msg[i] = msg[i] - 'A' + 'a';
   }
 
-  // Evita spam de "parar" logo após um comando de movimento (ruído de UI)
-  if (strcmp(msg, "parar") == 0 &&
-      strcmp(comandoRemoto, "parar") != 0 &&
-      (millis() - ultimoCmdMs) < 80) {
+  bool eMovimento =
+    strcmp(msg, "frente") == 0 ||
+    strcmp(msg, "tras") == 0 ||
+    strcmp(msg, "esquerda") == 0 ||
+    strcmp(msg, "direita") == 0;
+
+  if (eMovimento) {
+    strncpy(comandoRemoto, msg, sizeof(comandoRemoto) - 1);
+    comandoRemoto[sizeof(comandoRemoto) - 1] = '\0';
+    remotoAtivo = true;
+    ultimoCmdMs = millis();
+
+    int velA = 0, velB = 0;
+    comandoParaMotores(comandoRemoto, &velA, &velB);
+    aplicarDirecao(velA, velB);
+
+    Serial.print("ANDAR ");
+    Serial.print(comandoRemoto);
+    Serial.print(" A=");
+    Serial.print(velA);
+    Serial.print(" B=");
+    Serial.println(velB);
     return;
   }
 
-  strncpy(comandoRemoto, msg, sizeof(comandoRemoto) - 1);
-  comandoRemoto[sizeof(comandoRemoto) - 1] = '\0';
-  ultimoCmdMs = millis();
-
-  // Aplica na hora (não espera o próximo loop)
-  int velA = 0;
-  int velB = 0;
-  comandoParaMotores(comandoRemoto, &velA, &velB);
-  aplicarDirecao(velA, velB);
-
-  Serial.print("CMD: ");
-  Serial.print(comandoRemoto);
-  Serial.print(" A=");
-  Serial.print(velA);
-  Serial.print(" B=");
-  Serial.println(velB);
+  if (strcmp(msg, "parar") == 0) {
+    remotoAtivo = false;
+    strncpy(comandoRemoto, "parar", sizeof(comandoRemoto) - 1);
+    ultimoCmdMs = millis();
+    pararTudo();
+    Serial.println("PARAR");
+  }
 }
 
 bool tentarWifi() {
   if (WiFi.status() == WL_CONNECTED) return true;
-
   Serial.println("WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_SENHA);
@@ -206,7 +251,8 @@ void setup() {
   tentarWifi();
   if (WiFi.status() == WL_CONNECTED) tentarMqtt();
 
-  Serial.println("SmartCart motores: joystick + MQTT");
+  Serial.println("SmartCart motores prontos");
+  Serial.println(USAR_JOYSTICK ? "Joystick: ON" : "Joystick: OFF (so MQTT)");
 }
 
 void loop() {
@@ -226,21 +272,19 @@ void loop() {
     mqtt.loop();
   }
 
-  int velA = 0;
-  int velB = 0;
-  bool usandoRemoto = false;
+  // Segurança: se o site sumir com o motor ligado, para em alguns segundos
+  if (remotoAtivo && (agora - ultimoCmdMs > TIMEOUT_SEGURANCA_MS)) {
+    remotoAtivo = false;
+    strncpy(comandoRemoto, "parar", sizeof(comandoRemoto) - 1);
+    pararTudo();
+    Serial.println("TIMEOUT seguranca -> PARAR");
+  }
 
-  // Comando do site tem prioridade se for recente
-  if (agora - ultimoCmdMs < TIMEOUT_CMD_MS) {
-    usandoRemoto = true;
+  if (remotoAtivo) {
+    int velA = 0, velB = 0;
     comandoParaMotores(comandoRemoto, &velA, &velB);
-  } else {
-    // Timeout de segurança: se o site soltou o botão e não mandou "parar"
-    if (strcmp(comandoRemoto, "parar") != 0) {
-      strncpy(comandoRemoto, "parar", sizeof(comandoRemoto) - 1);
-    }
-
-    // Joystick local
+    aplicarDirecao(velA, velB);
+  } else if (USAR_JOYSTICK) {
     int leituraX = analogRead(PIN_JOY_X);
     int leituraY = analogRead(PIN_JOY_Y);
     int eixoX = leituraX - JOY_CENTRO;
@@ -253,67 +297,13 @@ void loop() {
     frenteTras = constrain(frenteTras, -PWM_MAX, PWM_MAX);
     curva      = constrain(curva, -PWM_MAX, PWM_MAX);
 
-    velA = constrain(frenteTras + curva, -PWM_MAX, PWM_MAX);
-    velB = constrain(frenteTras - curva, -PWM_MAX, PWM_MAX);
-  }
-
-  aplicarDirecao(velA, velB);
-
-  static unsigned long ultimoLog = 0;
-  if (agora - ultimoLog > 400) {
-    ultimoLog = agora;
-    Serial.print(usandoRemoto ? "REMOTO " : "JOY ");
-    Serial.print(comandoRemoto);
-    Serial.print(" | A=");
-    Serial.print(velA);
-    Serial.print(" B=");
-    Serial.println(velB);
-  }
-
-  delay(20);
-}
-
-void moverBTS7960(int rpwm, int lpwm, int velocidade) {
-  int pwm = abs(velocidade);
-  if (pwm > PWM_MAX) pwm = PWM_MAX;
-
-  if (velocidade > 0) {
-    ledcWrite(rpwm, pwm);
-    ledcWrite(lpwm, 0);
-  } else if (velocidade < 0) {
-    ledcWrite(rpwm, 0);
-    ledcWrite(lpwm, pwm);
+    int velA = constrain(frenteTras + curva, -PWM_MAX, PWM_MAX);
+    int velB = constrain(frenteTras - curva, -PWM_MAX, PWM_MAX);
+    aplicarDirecao(velA, velB);
   } else {
-    ledcWrite(rpwm, 0);
-    ledcWrite(lpwm, 0);
+    // Sem remoto e sem joystick: garante parado
+    // (não chama pararTudo toda hora para não spammar)
   }
-}
 
-void pararCanal(int rpwm, int lpwm) {
-  moverBTS7960(rpwm, lpwm, 0);
-}
-
-void pararTudo() {
-  pararCanal(MOTOR_A_RPWM, MOTOR_A_LPWM);
-  pararCanal(MOTOR_B_RPWM, MOTOR_B_LPWM);
-  sentidoA = 0;
-  sentidoB = 0;
-}
-
-int sinal(int v) {
-  if (v > 0) return 1;
-  if (v < 0) return -1;
-  return 0;
-}
-
-void acionarMotorSeguro(int rpwm, int lpwm, int velocidade, int* sentidoAtual, char motorId) {
-  int novo = sinal(velocidade);
-  // Sem delay aqui: delay dentro do callback MQTT/trava o controle remoto
-  if (*sentidoAtual != 0 && novo != 0 && *sentidoAtual != novo) {
-    pararCanal(rpwm, lpwm);
-  }
-  moverBTS7960(rpwm, lpwm, velocidade);
-  *sentidoAtual = novo;
-  (void)motorId;
-  (void)PAUSA_INVERSAO_MS;
+  delay(10);
 }
