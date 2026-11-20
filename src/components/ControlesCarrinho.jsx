@@ -18,65 +18,60 @@ export default function ControlesCarrinho({
 }) {
   const [ativo, setAtivo] = useState("parar");
   const holdingRef = useRef(false);
-  const cmdRef = useRef("parar");
-  const beatRef = useRef(null);
+  const armedRef = useRef(false);
+  const armTimerRef = useRef(null);
+  const pointerIdRef = useRef(null);
   const onComandoRef = useRef(onComando);
 
   useEffect(() => {
     onComandoRef.current = onComando;
   }, [onComando]);
 
-  function limparBeat() {
-    if (beatRef.current) {
-      window.clearInterval(beatRef.current);
-      beatRef.current = null;
+  function limparArm() {
+    if (armTimerRef.current) {
+      window.clearTimeout(armTimerRef.current);
+      armTimerRef.current = null;
     }
+    armedRef.current = false;
   }
 
-  function parar() {
-    if (!holdingRef.current && cmdRef.current === "parar") return;
+  function parar(motivo = "release") {
+    if (!holdingRef.current && ativo === "parar") return;
     holdingRef.current = false;
-    limparBeat();
-    cmdRef.current = "parar";
+    pointerIdRef.current = null;
+    limparArm();
     setAtivo("parar");
     onComandoRef.current?.("parar");
+    console.debug("[drive] parar", motivo);
+  }
+
+  function iniciar(cmd, pointerId) {
+    if (!conectado) return;
+
+    limparArm();
+    holdingRef.current = cmd !== "parar";
+    pointerIdRef.current = pointerId ?? null;
+    setAtivo(cmd);
+    onComandoRef.current?.(cmd);
+    console.debug("[drive] iniciar", cmd);
+
+    if (cmd === "parar") {
+      holdingRef.current = false;
+      return;
+    }
+
+    // Só aceita "soltar" depois de 80ms (evita pointerup fantasma no mesmo clique)
+    armTimerRef.current = window.setTimeout(() => {
+      armedRef.current = true;
+    }, 80);
   }
 
   useEffect(() => {
-    function onUp() {
-      if (holdingRef.current) parar();
-    }
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    window.addEventListener("blur", onUp);
     return () => {
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-      window.removeEventListener("blur", onUp);
-      limparBeat();
+      limparArm();
       if (holdingRef.current) onComandoRef.current?.("parar");
     };
   }, []);
-
-  function iniciar(cmd) {
-    if (!conectado) return;
-
-    // Um único "frente" trava o motor no ESP; heartbeat só renova segurança
-    holdingRef.current = cmd !== "parar";
-    cmdRef.current = cmd;
-    setAtivo(cmd);
-    onComandoRef.current?.(cmd);
-
-    limparBeat();
-    if (cmd !== "parar") {
-      beatRef.current = window.setInterval(() => {
-        if (!holdingRef.current) return;
-        onComandoRef.current?.(cmdRef.current);
-      }, 800);
-    } else {
-      holdingRef.current = false;
-    }
-  }
 
   return (
     <section className="sc-drive" aria-labelledby="titulo-drive">
@@ -118,7 +113,26 @@ export default function ControlesCarrinho({
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              iniciar(b.id);
+              try {
+                e.currentTarget.setPointerCapture(e.pointerId);
+              } catch {
+                /* ignore */
+              }
+              iniciar(b.id, e.pointerId);
+            }}
+            onPointerUp={(e) => {
+              if (pointerIdRef.current != null && e.pointerId !== pointerIdRef.current) {
+                return;
+              }
+              if (!armedRef.current && b.id !== "parar") {
+                // pointerup cedo demais: ignora (continua andando)
+                return;
+              }
+              parar("pointerup");
+            }}
+            onPointerCancel={() => parar("cancel")}
+            onLostPointerCapture={() => {
+              if (holdingRef.current && armedRef.current) parar("lost");
             }}
             onContextMenu={(e) => e.preventDefault()}
           >
