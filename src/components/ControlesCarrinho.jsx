@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const KEEP_MS = 150;
+const KEEP_MS = 100;
 const MAX_RAIO = 78;
 // Histerese: evita frente↔parar↔frente (tranco)
 const MORTO_LIGA = 0.34;

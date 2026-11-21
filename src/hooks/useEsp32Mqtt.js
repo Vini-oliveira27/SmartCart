@@ -88,7 +88,7 @@ export function useEsp32Mqtt(total, quantidadeItens) {
     setComandoAtual((atual) => (atual === cmd ? atual : cmd));
     if (!client?.connected) return false;
     try {
-      client.publish(`smartcart/${id}/cmd`, cmd, { qos: 0, retain: false });
+      client.publish(`smartcart/${id}/cmd`, cmd, { qos: 1, retain: false });
       return true;
     } catch (e) {
       console.warn("Falha ao enviar comando ao carrinho:", e);
