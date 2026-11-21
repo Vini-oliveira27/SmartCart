@@ -1,6 +1,12 @@
 /* Service worker simples — cache de estáticos do SmartCart */
-const CACHE = "smartcart-v1";
-const PRECACHE = ["/", "/index.html", "/manifest.webmanifest", "/favicon.svg"];
+const CACHE = "smartcart-v2";
+const PRECACHE = [
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  "/favicon.png",
+  "/brand/smartcart-icon.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

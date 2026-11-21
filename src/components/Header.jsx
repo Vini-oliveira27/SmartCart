@@ -29,19 +29,14 @@ export default function Header({
           title="Toque longo: modo técnico"
           onPointerDown={handleLogoPointerDown}
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="9" cy="20" r="1.5" fill="currentColor" stroke="none" />
-            <circle cx="18" cy="20" r="1.5" fill="currentColor" stroke="none" />
-            <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L21 8H7" />
-          </svg>
+          <img
+            className="sc-logo-img"
+            src="/brand/smartcart-icon.png"
+            alt=""
+            width="52"
+            height="52"
+            draggable="false"
+          />
         </button>
 
         <div className="sc-header-text">

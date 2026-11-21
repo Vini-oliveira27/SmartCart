@@ -62,12 +62,15 @@
   flex-shrink: 0;
   width: 52px;
   height: 52px;
+  padding: 0;
+  border: none;
   border-radius: 16px;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: linear-gradient(145deg, var(--mint) 0%, var(--mint-deep) 100%);
+  overflow: hidden;
+  background: transparent;
   box-shadow: var(--logo-shadow);
+  cursor: pointer;
 }
 
 .sc-header-compact .sc-logo {
@@ -76,14 +79,13 @@
   border-radius: 12px;
 }
 
-.sc-logo svg {
-  width: 24px;
-  height: 24px;
-}
-
-.sc-header-compact .sc-logo svg {
-  width: 20px;
-  height: 20px;
+.sc-logo-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
 }
 
 .sc-header-text {

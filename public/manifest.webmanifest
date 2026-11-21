@@ -4,20 +4,20 @@
   "description": "Self-checkout inteligente — escaneie produtos e some o total em tempo real.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#e4efe9",
-  "theme_color": "#0a2e28",
+  "background_color": "#eceae4",
+  "theme_color": "#2f4db5",
   "lang": "pt-BR",
   "icons": [
     {
-      "src": "/icons/icon-192.svg",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.svg",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
