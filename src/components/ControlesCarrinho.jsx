@@ -1,21 +1,44 @@
 import { useEffect, useRef, useState } from "react";
 
-const KEEP_MS = 200;
-const MAX_RAIO = 78; // px — deslocamento máximo do knob
-const MORTO = 0.28; // % do raio = centro (parar)
+const KEEP_MS = 150;
+const MAX_RAIO = 78;
+// Histerese: evita frente↔parar↔frente (tranco)
+const MORTO_LIGA = 0.34;
+const MORTO_SOLTA = 0.16;
+// Só troca de direção se o outro eixo for bem mais forte
+const TROCA_DIR = 1.35;
 
-function comandoDoVetor(nx, ny) {
+function comandoDoVetor(nx, ny, atual) {
   const mag = Math.hypot(nx, ny);
-  if (mag < MORTO) return "parar";
-  // Eixo dominante (4 direções)
-  if (Math.abs(ny) >= Math.abs(nx)) {
-    return ny < 0 ? "frente" : "tras";
+  const limiar = atual === "parar" ? MORTO_LIGA : MORTO_SOLTA;
+  if (mag < limiar) return "parar";
+
+  const absX = Math.abs(nx);
+  const absY = Math.abs(ny);
+  let novo;
+  if (absY >= absX) novo = ny < 0 ? "frente" : "tras";
+  else novo = nx < 0 ? "esquerda" : "direita";
+
+  // Mantém a direção atual se o stick ainda está nela (menos flicker)
+  if (atual === "frente" && ny < -MORTO_SOLTA && absY * TROCA_DIR >= absX) {
+    return "frente";
   }
-  return nx < 0 ? "esquerda" : "direita";
+  if (atual === "tras" && ny > MORTO_SOLTA && absY * TROCA_DIR >= absX) {
+    return "tras";
+  }
+  if (atual === "esquerda" && nx < -MORTO_SOLTA && absX * TROCA_DIR >= absY) {
+    return "esquerda";
+  }
+  if (atual === "direita" && nx > MORTO_SOLTA && absX * TROCA_DIR >= absY) {
+    return "direita";
+  }
+
+  return novo;
 }
 
 /**
- * Joystick visual: arraste na direção → carrinho anda · solte → para
+ * Joystick visual: arraste → anda · solte → para
+ * Keepalive contínuo enquanto o stick estiver fora do centro.
  */
 export default function ControlesCarrinho({
   conectado,
@@ -40,28 +63,36 @@ export default function ControlesCarrinho({
   }, [onComando]);
 
   useEffect(() => {
-    return () => encerrar(true);
+    return () => soltarStick(true);
   }, []);
 
-  function enviar(cmdNovo) {
-    if (cmdRef.current === cmdNovo) return;
+  function publicar(cmdNovo, forcar = false) {
+    if (!forcar && cmdRef.current === cmdNovo) return;
     cmdRef.current = cmdNovo;
     setCmd(cmdNovo);
     if (conectado) onComandoRef.current?.(cmdNovo);
   }
 
-  function encerrar(mandarParar) {
-    limparListenersRef.current?.();
-    limparListenersRef.current = null;
+  function limparKeep() {
     if (keepRef.current) {
       clearInterval(keepRef.current);
       keepRef.current = null;
     }
+  }
+
+  function limparWindow() {
+    limparListenersRef.current?.();
+    limparListenersRef.current = null;
+  }
+
+  function soltarStick(mandarParar) {
+    limparWindow();
+    limparKeep();
     ativoRef.current = false;
     pointerIdRef.current = null;
     setKnob({ x: 0, y: 0 });
-    if (mandarParar && cmdRef.current !== "parar") {
-      enviar("parar");
+    if (mandarParar) {
+      publicar("parar", true);
     } else {
       cmdRef.current = "parar";
       setCmd("parar");
@@ -77,14 +108,14 @@ export default function ControlesCarrinho({
     let dx = clientX - cx;
     let dy = clientY - cy;
     const dist = Math.hypot(dx, dy);
-    if (dist > MAX_RAIO) {
+    if (dist > MAX_RAIO && dist > 0) {
       dx = (dx / dist) * MAX_RAIO;
       dy = (dy / dist) * MAX_RAIO;
     }
     setKnob({ x: dx, y: dy });
     const nx = dx / MAX_RAIO;
     const ny = dy / MAX_RAIO;
-    enviar(comandoDoVetor(nx, ny));
+    publicar(comandoDoVetor(nx, ny, cmdRef.current));
   }
 
   function iniciar(e) {
@@ -93,14 +124,20 @@ export default function ControlesCarrinho({
     e.preventDefault();
     e.stopPropagation();
 
-    encerrar(false);
+    // Não chama soltarStick aqui — evita “parar” no meio do toque
+    limparWindow();
+    limparKeep();
+
     ativoRef.current = true;
     pointerIdRef.current = e.pointerId;
     aplicarPonto(e.clientX, e.clientY);
 
+    // Keepalive: reenvia o comando atual (mesmo se igual) pra não dar timeout no ESP
     keepRef.current = setInterval(() => {
-      if (ativoRef.current && cmdRef.current !== "parar") {
-        onComandoRef.current?.(cmdRef.current);
+      if (!ativoRef.current) return;
+      const atual = cmdRef.current;
+      if (atual && atual !== "parar") {
+        onComandoRef.current?.(atual);
       }
     }, KEEP_MS);
 
@@ -116,7 +153,7 @@ export default function ControlesCarrinho({
       ) {
         return;
       }
-      encerrar(true);
+      soltarStick(true);
     };
 
     window.addEventListener("pointermove", mover, { passive: false });
@@ -193,7 +230,7 @@ export default function ControlesCarrinho({
         {!conectado
           ? "Conecte para dirigir"
           : cmd === "parar"
-            ? "Arraste o joystick para dirigir"
+            ? "Arraste e segure para dirigir"
             : labelCmd}
       </p>
     </section>
