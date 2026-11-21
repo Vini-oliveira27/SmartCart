@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 
-const KEEP_MS = 220;
+const KEEP_MS = 200;
+const MAX_RAIO = 78; // px — deslocamento máximo do knob
+const MORTO = 0.28; // % do raio = centro (parar)
 
-const SETAS = {
-  frente: "M12 4 L20 14 H15 V20 H9 V14 H4 Z",
-  tras: "M12 20 L4 10 H9 V4 H15 V10 H20 Z",
-  esquerda: "M4 12 L14 4 V9 H20 V15 H14 V20 Z",
-  direita: "M20 12 L10 20 V15 H4 V9 H10 V4 Z",
-};
+function comandoDoVetor(nx, ny) {
+  const mag = Math.hypot(nx, ny);
+  if (mag < MORTO) return "parar";
+  // Eixo dominante (4 direções)
+  if (Math.abs(ny) >= Math.abs(nx)) {
+    return ny < 0 ? "frente" : "tras";
+  }
+  return nx < 0 ? "esquerda" : "direita";
+}
 
 /**
- * Segurar = anda · Soltar = para (sempre, mesmo se o dedo sair do botão)
+ * Joystick visual: arraste na direção → carrinho anda · solte → para
  */
 export default function ControlesCarrinho({
   conectado,
@@ -20,9 +25,12 @@ export default function ControlesCarrinho({
   status,
   onConectar,
 }) {
-  const [ativo, setAtivo] = useState(null);
-  const segurandoRef = useRef(null);
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const [cmd, setCmd] = useState("parar");
+  const baseRef = useRef(null);
+  const ativoRef = useRef(false);
   const pointerIdRef = useRef(null);
+  const cmdRef = useRef("parar");
   const keepRef = useRef(null);
   const onComandoRef = useRef(onComando);
   const limparListenersRef = useRef(null);
@@ -32,48 +40,75 @@ export default function ControlesCarrinho({
   }, [onComando]);
 
   useEffect(() => {
-    return () => {
-      limparListenersRef.current?.();
-      if (keepRef.current) clearInterval(keepRef.current);
-      if (segurandoRef.current) onComandoRef.current?.("parar");
-    };
+    return () => encerrar(true);
   }, []);
 
-  function pararTudo() {
+  function enviar(cmdNovo) {
+    if (cmdRef.current === cmdNovo) return;
+    cmdRef.current = cmdNovo;
+    setCmd(cmdNovo);
+    if (conectado) onComandoRef.current?.(cmdNovo);
+  }
+
+  function encerrar(mandarParar) {
     limparListenersRef.current?.();
     limparListenersRef.current = null;
     if (keepRef.current) {
       clearInterval(keepRef.current);
       keepRef.current = null;
     }
-    const tinha = !!segurandoRef.current;
-    segurandoRef.current = null;
+    ativoRef.current = false;
     pointerIdRef.current = null;
-    setAtivo(null);
-    if (tinha) onComandoRef.current?.("parar");
+    setKnob({ x: 0, y: 0 });
+    if (mandarParar && cmdRef.current !== "parar") {
+      enviar("parar");
+    } else {
+      cmdRef.current = "parar";
+      setCmd("parar");
+    }
   }
 
-  function iniciarHold(cmd, e) {
+  function aplicarPonto(clientX, clientY) {
+    const el = baseRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > MAX_RAIO) {
+      dx = (dx / dist) * MAX_RAIO;
+      dy = (dy / dist) * MAX_RAIO;
+    }
+    setKnob({ x: dx, y: dy });
+    const nx = dx / MAX_RAIO;
+    const ny = dy / MAX_RAIO;
+    enviar(comandoDoVetor(nx, ny));
+  }
+
+  function iniciar(e) {
     if (!conectado) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
-
     e.preventDefault();
     e.stopPropagation();
 
-    // Se já estava segurando outro, para primeiro
-    pararTudo();
-
-    segurandoRef.current = cmd;
+    encerrar(false);
+    ativoRef.current = true;
     pointerIdRef.current = e.pointerId;
-    setAtivo(cmd);
-    onComando?.(cmd);
+    aplicarPonto(e.clientX, e.clientY);
 
     keepRef.current = setInterval(() => {
-      if (segurandoRef.current) {
-        onComandoRef.current?.(segurandoRef.current);
+      if (ativoRef.current && cmdRef.current !== "parar") {
+        onComandoRef.current?.(cmdRef.current);
       }
     }, KEEP_MS);
 
+    const mover = (ev) => {
+      if (ev.pointerId !== pointerIdRef.current) return;
+      ev.preventDefault();
+      aplicarPonto(ev.clientX, ev.clientY);
+    };
     const soltar = (ev) => {
       if (
         pointerIdRef.current != null &&
@@ -81,41 +116,29 @@ export default function ControlesCarrinho({
       ) {
         return;
       }
-      pararTudo();
+      encerrar(true);
     };
 
+    window.addEventListener("pointermove", mover, { passive: false });
     window.addEventListener("pointerup", soltar);
     window.addEventListener("pointercancel", soltar);
     limparListenersRef.current = () => {
+      window.removeEventListener("pointermove", mover);
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
     };
   }
 
-  function enviarParar(e) {
-    e.preventDefault();
-    pararTudo();
-    if (conectado) onComando?.("parar");
-  }
-
-  function BotaoDir({ id, label }) {
-    const pressionado = ativo === id;
-    return (
-      <button
-        type="button"
-        className={`sc-dpad-btn sc-dpad-${id}${pressionado ? " is-on" : ""}`}
-        disabled={!conectado}
-        aria-label={label}
-        aria-pressed={pressionado}
-        onPointerDown={(e) => iniciarHold(id, e)}
-        onContextMenu={(e) => e.preventDefault()}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="sc-dpad-ico">
-          <path d={SETAS[id]} fill="currentColor" />
-        </svg>
-      </button>
-    );
-  }
+  const labelCmd =
+    cmd === "frente"
+      ? "Frente"
+      : cmd === "tras"
+        ? "Ré"
+        : cmd === "esquerda"
+          ? "Esquerda"
+          : cmd === "direita"
+            ? "Direita"
+            : "Parado";
 
   return (
     <section className="sc-drive" aria-labelledby="titulo-drive">
@@ -144,26 +167,34 @@ export default function ControlesCarrinho({
         {status?.texto || (conectado ? "Conectado" : "Desconectado")}
       </div>
 
-      <div className="sc-dpad" role="group" aria-label="Direção do carrinho">
-        <div className="sc-dpad-ring" aria-hidden="true" />
-        <BotaoDir id="frente" label="Frente" />
-        <BotaoDir id="esquerda" label="Esquerda" />
-        <button
-          type="button"
-          className="sc-dpad-btn sc-dpad-parar"
-          disabled={!conectado}
-          aria-label="Parar"
-          onPointerDown={enviarParar}
-          onClick={enviarParar}
-        >
-          <span className="sc-dpad-stop" />
-        </button>
-        <BotaoDir id="direita" label="Direita" />
-        <BotaoDir id="tras" label="Ré" />
+      <div
+        className={`sc-joy${conectado ? "" : " is-off"}${cmd !== "parar" ? " is-active" : ""}`}
+        ref={baseRef}
+        role="application"
+        aria-label="Joystick do carrinho"
+        aria-disabled={!conectado}
+        onPointerDown={iniciar}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div className="sc-joy-cross" aria-hidden="true">
+          <span className="sc-joy-n">▲</span>
+          <span className="sc-joy-s">▼</span>
+          <span className="sc-joy-w">◀</span>
+          <span className="sc-joy-e">▶</span>
+        </div>
+        <div className="sc-joy-dead" aria-hidden="true" />
+        <div
+          className="sc-joy-knob"
+          style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }}
+        />
       </div>
 
       <p className="sc-drive-hint">
-        {conectado ? "Segure para andar · solte para parar" : "Conecte para dirigir"}
+        {!conectado
+          ? "Conecte para dirigir"
+          : cmd === "parar"
+            ? "Arraste o joystick para dirigir"
+            : labelCmd}
       </p>
     </section>
   );
