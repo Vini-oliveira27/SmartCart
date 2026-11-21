@@ -1,18 +1,16 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const BOTOES = [
-  { id: "frente", label: "Frente", grid: "frente" },
-  { id: "esquerda", label: "Esquerda", grid: "esquerda" },
-  { id: "parar", label: "Parar", grid: "parar" },
-  { id: "direita", label: "Direita", grid: "direita" },
-  { id: "tras", label: "Ré", grid: "tras" },
-];
+const KEEP_MS = 220;
+
+const SETAS = {
+  frente: "M12 4 L20 14 H15 V20 H9 V14 H4 Z",
+  tras: "M12 20 L4 10 H9 V4 H15 V10 H20 Z",
+  esquerda: "M4 12 L14 4 V9 H20 V15 H14 V20 Z",
+  direita: "M20 12 L10 20 V15 H4 V9 H10 V4 Z",
+};
 
 /**
- * Modo clique (não segurar):
- * Frente/Ré/Esq/Dir = motor fica ligado
- * Parar = desliga
- * Isso evita o "pulinho" causado por soltar o botão cedo demais.
+ * Segurar = anda · Soltar = para (sempre, mesmo se o dedo sair do botão)
  */
 export default function ControlesCarrinho({
   conectado,
@@ -22,12 +20,101 @@ export default function ControlesCarrinho({
   status,
   onConectar,
 }) {
-  const [ativo, setAtivo] = useState("parar");
+  const [ativo, setAtivo] = useState(null);
+  const segurandoRef = useRef(null);
+  const pointerIdRef = useRef(null);
+  const keepRef = useRef(null);
+  const onComandoRef = useRef(onComando);
+  const limparListenersRef = useRef(null);
 
-  function enviar(cmd) {
+  useEffect(() => {
+    onComandoRef.current = onComando;
+  }, [onComando]);
+
+  useEffect(() => {
+    return () => {
+      limparListenersRef.current?.();
+      if (keepRef.current) clearInterval(keepRef.current);
+      if (segurandoRef.current) onComandoRef.current?.("parar");
+    };
+  }, []);
+
+  function pararTudo() {
+    limparListenersRef.current?.();
+    limparListenersRef.current = null;
+    if (keepRef.current) {
+      clearInterval(keepRef.current);
+      keepRef.current = null;
+    }
+    const tinha = !!segurandoRef.current;
+    segurandoRef.current = null;
+    pointerIdRef.current = null;
+    setAtivo(null);
+    if (tinha) onComandoRef.current?.("parar");
+  }
+
+  function iniciarHold(cmd, e) {
     if (!conectado) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Se já estava segurando outro, para primeiro
+    pararTudo();
+
+    segurandoRef.current = cmd;
+    pointerIdRef.current = e.pointerId;
     setAtivo(cmd);
     onComando?.(cmd);
+
+    keepRef.current = setInterval(() => {
+      if (segurandoRef.current) {
+        onComandoRef.current?.(segurandoRef.current);
+      }
+    }, KEEP_MS);
+
+    const soltar = (ev) => {
+      if (
+        pointerIdRef.current != null &&
+        ev.pointerId !== pointerIdRef.current
+      ) {
+        return;
+      }
+      pararTudo();
+    };
+
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+    limparListenersRef.current = () => {
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+    };
+  }
+
+  function enviarParar(e) {
+    e.preventDefault();
+    pararTudo();
+    if (conectado) onComando?.("parar");
+  }
+
+  function BotaoDir({ id, label }) {
+    const pressionado = ativo === id;
+    return (
+      <button
+        type="button"
+        className={`sc-dpad-btn sc-dpad-${id}${pressionado ? " is-on" : ""}`}
+        disabled={!conectado}
+        aria-label={label}
+        aria-pressed={pressionado}
+        onPointerDown={(e) => iniciarHold(id, e)}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="sc-dpad-ico">
+          <path d={SETAS[id]} fill="currentColor" />
+        </svg>
+      </button>
+    );
   }
 
   return (
@@ -57,29 +144,27 @@ export default function ControlesCarrinho({
         {status?.texto || (conectado ? "Conectado" : "Desconectado")}
       </div>
 
-      <p className="sc-drive-hint">Toque para andar · Parar para frear</p>
-
-      <div className="sc-drive-pad" role="group" aria-label="Direção do carrinho">
-        {BOTOES.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            className={`sc-drive-btn sc-drive-${b.grid} ${
-              ativo === b.id ? "ativo" : ""
-            }`}
-            disabled={!conectado}
-            aria-label={b.label}
-            onClick={() => enviar(b.id)}
-          >
-            {b.id === "frente" && "▲"}
-            {b.id === "tras" && "▼"}
-            {b.id === "esquerda" && "◀"}
-            {b.id === "direita" && "▶"}
-            {b.id === "parar" && "■"}
-            <span>{b.label}</span>
-          </button>
-        ))}
+      <div className="sc-dpad" role="group" aria-label="Direção do carrinho">
+        <div className="sc-dpad-ring" aria-hidden="true" />
+        <BotaoDir id="frente" label="Frente" />
+        <BotaoDir id="esquerda" label="Esquerda" />
+        <button
+          type="button"
+          className="sc-dpad-btn sc-dpad-parar"
+          disabled={!conectado}
+          aria-label="Parar"
+          onPointerDown={enviarParar}
+          onClick={enviarParar}
+        >
+          <span className="sc-dpad-stop" />
+        </button>
+        <BotaoDir id="direita" label="Direita" />
+        <BotaoDir id="tras" label="Ré" />
       </div>
+
+      <p className="sc-drive-hint">
+        {conectado ? "Segure para andar · solte para parar" : "Conecte para dirigir"}
+      </p>
     </section>
   );
 }

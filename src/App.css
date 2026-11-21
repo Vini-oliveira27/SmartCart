@@ -384,68 +384,102 @@
 
 .sc-drive-hint {
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--ink-soft);
-  margin: 4px 0 10px;
+  margin: 12px 0 0;
 }
 
-.sc-drive-pad {
+.sc-dpad {
+  position: relative;
+  width: min(248px, 72vw);
+  aspect-ratio: 1;
+  margin: 12px auto 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   grid-template-areas:
     ". frente ."
     "esquerda parar direita"
     ". tras .";
-  gap: 8px;
-  max-width: 280px;
-  margin: 0 auto;
+  place-items: center;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
 }
 
-.sc-drive-frente { grid-area: frente; }
-.sc-drive-esquerda { grid-area: esquerda; }
-.sc-drive-parar { grid-area: parar; }
-.sc-drive-direita { grid-area: direita; }
-.sc-drive-tras { grid-area: tras; }
+.sc-dpad-ring {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, var(--surface-strong) 0%, var(--paper) 62%, transparent 63%),
+    radial-gradient(circle at 50% 50%, transparent 58%, var(--mint-glow) 59%, transparent 72%);
+  border: 1px solid var(--line);
+  pointer-events: none;
+  z-index: 0;
+}
 
-.sc-drive-btn {
-  min-height: 56px;
-  border-radius: 14px;
+.sc-dpad-frente { grid-area: frente; }
+.sc-dpad-esquerda { grid-area: esquerda; }
+.sc-dpad-parar { grid-area: parar; }
+.sc-dpad-direita { grid-area: direita; }
+.sc-dpad-tras { grid-area: tras; }
+
+.sc-dpad-btn {
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
   border: 1.5px solid var(--line);
-  background: var(--paper);
+  background: var(--surface-strong);
   color: var(--ink);
   display: grid;
   place-items: center;
-  gap: 2px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  padding: 8px;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }
 
-.sc-drive-btn span {
-  font-size: 0.7rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+.sc-dpad-ico {
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
 }
 
-.sc-drive-btn:disabled {
-  opacity: 0.45;
+.sc-dpad-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-.sc-drive-btn.ativo,
-.sc-drive-btn:not(:disabled):active {
-  background: var(--mint);
+.sc-dpad-btn.is-on {
+  background: var(--mint-strong);
   border-color: var(--mint-deep);
   color: #fff;
+  transform: scale(0.94);
+  box-shadow: var(--btn-shadow);
 }
 
-.sc-drive-btn.ativo span,
-.sc-drive-btn:not(:disabled):active span {
-  color: rgba(255, 255, 255, 0.9);
+.sc-dpad-parar {
+  width: 58px;
+  height: 58px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+
+.sc-dpad-stop {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--danger);
+  pointer-events: none;
+}
+
+.sc-dpad-parar:not(:disabled):active .sc-dpad-stop,
+.sc-dpad-parar:not(:disabled):active {
+  transform: scale(0.94);
 }
 
 .sc-drive-status {

@@ -96,14 +96,30 @@ export function useEsp32Mqtt(total, quantidadeItens) {
     }
   }, []);
 
+  const publicarPresenca = useCallback((online) => {
+    const client = clientRef.current;
+    if (!client?.connected) return;
+    const id = codigoRef.current;
+    try {
+      client.publish(
+        `smartcart/${id}/site`,
+        online ? id : "offline",
+        { qos: 0, retain: true }
+      );
+    } catch (e) {
+      console.warn("Falha ao publicar presença do site:", e);
+    }
+  }, []);
+
   const desconectar = useCallback(() => {
     enviarComando("parar");
+    publicarPresenca(false);
     manualCloseRef.current = true;
     encerrar();
     setConectado(false);
     setComandoAtual("parar");
     setStatus({ texto: "Desconectado", tipo: "" });
-  }, [encerrar, enviarComando]);
+  }, [encerrar, enviarComando, publicarPresenca]);
 
   const conectar = useCallback(() => {
     if (clientRef.current?.connected || conectado) {
@@ -132,6 +148,12 @@ export function useEsp32Mqtt(total, quantidadeItens) {
       connectTimeout: 10000,
       reconnectPeriod: 2500,
       protocolVersion: 4,
+      will: {
+        topic: `smartcart/${id}/site`,
+        payload: "offline",
+        qos: 0,
+        retain: true,
+      },
     });
     clientRef.current = client;
 
@@ -141,6 +163,8 @@ export function useEsp32Mqtt(total, quantidadeItens) {
         texto: `Conectado (${id})`,
         tipo: "ok",
       });
+      // Avisa a TFT que o site entrou (ex.: "demo")
+      client.publish(`smartcart/${id}/site`, id, { qos: 0, retain: true });
       publicar();
       client.publish(`smartcart/${id}/cmd`, "parar", { qos: 0, retain: false });
     });
@@ -168,11 +192,15 @@ export function useEsp32Mqtt(total, quantidadeItens) {
   useEffect(() => () => {
     manualCloseRef.current = true;
     try {
-      clientRef.current?.publish(
-        `smartcart/${codigoRef.current}/cmd`,
-        "parar",
-        { qos: 0, retain: false }
-      );
+      const id = codigoRef.current;
+      clientRef.current?.publish(`smartcart/${id}/cmd`, "parar", {
+        qos: 0,
+        retain: false,
+      });
+      clientRef.current?.publish(`smartcart/${id}/site`, "offline", {
+        qos: 0,
+        retain: true,
+      });
     } catch {
       /* ignore */
     }
