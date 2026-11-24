@@ -28,11 +28,11 @@
       "unidade": "un"
     },
     {
-      "id": "iogurte-natural-170g",
-      "nome": "Iogurte Natural 170g",
+      "id": "milho",
+      "nome": "Milho",
       "preco": 3.29,
       "codigoBarras": "7891000100042",
-      "categoria": "Laticínios",
+      "categoria": "Mercearia",
       "unidade": "un"
     },
     {
@@ -100,16 +100,16 @@
       "unidade": "un"
     },
     {
-      "id": "acucar-1kg",
-      "nome": "Açúcar Cristal 1kg",
+      "id": "cereal",
+      "nome": "Cereal",
       "preco": 4.29,
       "codigoBarras": "7891000600023",
       "categoria": "Mercearia",
       "unidade": "un"
     },
     {
-      "id": "oleo-soja-900ml",
-      "nome": "Óleo de Soja 900ml",
+      "id": "macarrao-penne",
+      "nome": "Macarrão Penne",
       "preco": 6.99,
       "codigoBarras": "7891000700013",
       "categoria": "Mercearia",
@@ -132,8 +132,8 @@
       "unidade": "un"
     },
     {
-      "id": "refrigerante-2l",
-      "nome": "Refrigerante 2L",
+      "id": "suco-de-uva",
+      "nome": "Suco de Uva",
       "preco": 9.99,
       "codigoBarras": "7891000900024",
       "categoria": "Bebidas",

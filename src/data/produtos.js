@@ -14,8 +14,8 @@ export const bancoProdutos = {
     preco: 14.5,
     codigoBarras: "7891000100035",
   },
-  IOGURTE01: {
-    nome: "Iogurte Natural 170g",
+  MILHO01: {
+    nome: "Milho",
     preco: 3.29,
     codigoBarras: "7891000100042",
   },
@@ -59,13 +59,13 @@ export const bancoProdutos = {
     preco: 18.9,
     codigoBarras: "7891000600016",
   },
-  ACUCAR01: {
-    nome: "Açúcar Cristal 1kg",
+  CEREAL01: {
+    nome: "Cereal",
     preco: 4.29,
     codigoBarras: "7891000600023",
   },
-  OLEO001: {
-    nome: "Óleo de Soja 900ml",
+  PENNE01: {
+    nome: "Macarrão Penne",
     preco: 6.99,
     codigoBarras: "7891000700013",
   },
@@ -79,8 +79,8 @@ export const bancoProdutos = {
     preco: 2.49,
     codigoBarras: "7891000900017",
   },
-  REFRI001: {
-    nome: "Refrigerante 2L",
+  SUCO001: {
+    nome: "Suco de Uva",
     preco: 9.99,
     codigoBarras: "7891000900024",
   },
